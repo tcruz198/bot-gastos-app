@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Gastos</title>
+  <meta name="theme-color" content="#14102A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gastos">
+  <meta name="robots" content="noindex">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <div class="top-sub" id="topSub">Gastos</div>
+      <h1 id="topTitle">…</h1>
+    </div>
+    <button class="icon-btn" id="btnRefrescar" aria-label="Actualizar">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <!-- Sin configurar: se llega desde el link que manda el bot -->
+    <section class="view" id="vSetup" hidden>
+      <div class="card setup">
+        <div class="emoji">🔗</div>
+        <h2>Falta tu link</h2>
+        <p>Pídele al bot de Telegram tu link personal y ábrelo en Safari. Después: Compartir → <b>Agregar a pantalla de inicio</b>.</p>
+        <p class="muted">Si ya lo tienes copiado, pégalo acá:</p>
+        <input id="setupLink" type="url" placeholder="https://…#api=…&k=…" autocomplete="off">
+        <button class="btn" id="setupGuardar">Guardar</button>
+      </div>
+    </section>
+
+    <section class="view" id="vMes" hidden>
+      <div class="card hero">
+        <div class="hero-label">Gastado este mes</div>
+        <div class="hero-monto" id="mTotal">—</div>
+        <div class="hero-grid">
+          <div><span>Ingresos</span><b id="mIngresos">—</b></div>
+          <div><span>Queda</span><b id="mQueda">—</b></div>
+          <div><span>Gastos</span><b id="mCantidad">—</b></div>
+        </div>
+        <div class="split" id="mSplit"></div>
+        <div class="split-leyenda" id="mSplitLeyenda"></div>
+        <div class="usd" id="mUSD" hidden></div>
+      </div>
+
+      <div class="aviso" id="mAvisoPend" hidden></div>
+
+      <h3 class="sec">Presupuesto <span class="muted" id="mAvance"></span></h3>
+      <div class="card" id="mPresupuesto"></div>
+
+      <h3 class="sec" id="mSinTopeTit" hidden>Sin tope</h3>
+      <div class="card" id="mSinTope" hidden></div>
+
+      <h3 class="sec">Últimos gastos</h3>
+      <div class="card lista" id="mRecientes"></div>
+    </section>
+
+    <section class="view" id="vClasificar" hidden>
+      <div class="seg" id="segQuien">
+        <button data-v="mios" class="on">Míos</button>
+        <button data-v="todos">De los dos</button>
+      </div>
+      <div id="cLista"></div>
+    </section>
+
+    <section class="view" id="vAnotar" hidden>
+      <div class="card anotar">
+        <label class="lbl" for="aMonto">Monto</label>
+        <div class="monto-wrap">
+          <span>$</span>
+          <input id="aMonto" inputmode="numeric" pattern="[0-9]*" placeholder="0" autocomplete="off">
+        </div>
+
+        <label class="lbl" for="aDesc">Qué fue</label>
+        <input id="aDesc" type="text" placeholder="feria, pago tarjeta, luz…" autocomplete="off" enterkeyhint="done">
+
+        <label class="lbl">Tipo</label>
+        <div class="seg" id="aTipo">
+          <button data-v="Manual" class="on">Gasto</button>
+          <button data-v="Transferencia">Transferencia</button>
+        </div>
+
+        <label class="lbl">Categoría <span class="muted">(opcional)</span></label>
+        <div class="chips" id="aCats"></div>
+
+        <button class="btn grande" id="aGuardar">Guardar</button>
+      </div>
+      <p class="nota">Para lo que el banco no avisa: efectivo, transferencias, pago de la tarjeta o de deudas.</p>
+    </section>
+  </main>
+
+  <nav class="tabs">
+    <button data-tab="vMes" class="on">
+      <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <span>Mes</span>
+    </button>
+    <button data-tab="vClasificar">
+      <svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8L3 12z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="7.5" cy="8.5" r="1.6" fill="currentColor"/></svg>
+      <span>Clasificar</span>
+      <i class="badge" id="badge" hidden></i>
+    </button>
+    <button data-tab="vAnotar">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+      <span>Anotar</span>
+    </button>
+  </nav>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
