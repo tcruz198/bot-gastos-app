@@ -81,8 +81,8 @@ async function refrescar() {
   try {
     const d = await llamar('resumen');
     if (!d.ok) throw new Error(d.error || 'Error al leer la planilla');
-    estado.datos = d;
-    guardarLS(LS_DATOS, d);
+    estado.datos = normalizar(d);
+    guardarLS(LS_DATOS, estado.datos);
     pintar();
   } catch (e) {
     aviso(e.message, true);
@@ -92,6 +92,28 @@ async function refrescar() {
 }
 
 // --- Formato --------------------------------------------------------------
+
+/**
+ * Fechas siempre 'aaaa-mm-dd' y horas '09:05'. La API vieja (y lo guardado
+ * en el teléfono antes del 04-11) mandaba '31/10/2026': la fecha no se veía
+ * y el orden salía mal.
+ */
+function fechaIso(f) {
+  const m = String(f || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : String(f || '');
+}
+function horaPad(h) {
+  const m = String(h || '').match(/^(\d{1,2}):(\d{2})/);
+  return m ? m[1].padStart(2, '0') + ':' + m[2] : String(h || '');
+}
+function normalizar(d) {
+  if (!d) return d;
+  const arreglar = (lista) => (lista || []).forEach((m) => { m.fecha = fechaIso(m.fecha); m.hora = horaPad(m.hora); });
+  arreglar(d.recientes); arreglar(d.delMes); arreglar(d.sinCategoria);
+  const nuevoPrimero = (a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora);
+  ['recientes', 'delMes', 'sinCategoria'].forEach((k) => { if (d[k]) d[k].sort(nuevoPrimero); });
+  return d;
+}
 
 const pesos = (n) => '$' + Math.round(n || 0).toLocaleString('es-CL');
 function montoDe(m) {
@@ -106,7 +128,8 @@ function nombreDe(m) { return m.comercio || m.notas || '(sin detalle)'; }
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 function diaLegible(iso) {
   const hoy = new Date();
-  const f = new Date(iso + 'T12:00:00');
+  const f = new Date(fechaIso(iso) + 'T12:00:00');
+  if (isNaN(f)) return String(iso || '');
   const ayer = new Date(hoy); ayer.setDate(hoy.getDate() - 1);
   const mismo = (a, b) => a.toDateString() === b.toDateString();
   if (mismo(f, hoy)) return 'Hoy';
@@ -140,7 +163,7 @@ function pintarTitulo() {
 const EMOJI = {
   'comida': '🥦', 'chatarra': '🍟', 'entretenimiento': '🎉', 'transporte': '🚗',
   'suscripciones': '🔁', 'salud': '💊', 'lucas': '👶', 'mejoras hogar': '🪴',
-  'gasto fijo': '🏠', 'deudas': '💳', 'otros': '📦', 'sin clasificar': '🏷️'
+  'gasto fijo': '🏠', 'deudas': '💳', 'otros': '📦', 'sin clasificar': '🏷️', 'sin recuerdo': '🤷'
 };
 const emojiDe = (c) => EMOJI[norm(c)] || '🏷️';
 // Orden fijo del día a día: así Marta encuentra cada tarjeta siempre en el mismo lugar.
@@ -483,7 +506,7 @@ function iniciar() {
   }
 
   // Lo último que se vio aparece al tiro; Google responde en unos segundos.
-  estado.datos = leerLS(LS_DATOS);
+  estado.datos = normalizar(leerLS(LS_DATOS));
   irA('vMes');
   if (estado.datos) pintar();
   else $('mRecientes').innerHTML = '<div class="cargando">Leyendo la planilla…</div>';

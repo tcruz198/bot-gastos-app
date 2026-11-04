@@ -1,6 +1,6 @@
 // Guarda la app (no los datos) para que abra al instante y sin señal.
 // Subir VERSION en cada cambio de la app, o los teléfonos siguen con la vieja.
-const VERSION = 'gastos-v4';
+const VERSION = 'gastos-v5';
 const ARCHIVOS = ['./', 'index.html', 'app.css', 'app.js', 'manifest.webmanifest',
                   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
