@@ -41,13 +41,9 @@
 
     <section class="view" id="vMes" hidden>
       <div class="card hero">
-        <div class="hero-label">Gastado este mes</div>
-        <div class="hero-monto" id="mTotal">—</div>
-        <div class="hero-grid">
-          <div><span>Ingresos</span><b id="mIngresos">—</b></div>
-          <div><span>Queda</span><b id="mQueda">—</b></div>
-          <div><span>Gastos</span><b id="mCantidad">—</b></div>
-        </div>
+        <div class="hero-label">Queda del sueldo</div>
+        <div class="hero-monto" id="mQueda">—</div>
+        <div class="hero-sub" id="mHeroSub"></div>
         <div class="split" id="mSplit"></div>
         <div class="split-leyenda" id="mSplitLeyenda"></div>
         <div class="usd" id="mUSD" hidden></div>
@@ -55,8 +51,12 @@
 
       <div class="aviso" id="mAvisoPend" hidden></div>
 
-      <h3 class="sec">Presupuesto <span class="muted" id="mAvance"></span></h3>
-      <div class="card" id="mPresupuesto"></div>
+      <div class="card meta" id="mMeta" hidden></div>
+
+      <h3 class="sec">Día a día <span class="muted" id="mAvance"></span></h3>
+      <div class="grid-cats" id="mCats"></div>
+
+      <div id="mFijos"></div>
 
       <h3 class="sec" id="mSinTopeTit" hidden>Sin tope</h3>
       <div class="card" id="mSinTope" hidden></div>
@@ -70,6 +70,7 @@
         <button data-v="mios" class="on">Míos</button>
         <button data-v="todos">De los dos</button>
       </div>
+      <details class="card guia" id="cGuia"><summary>¿Qué va en cada categoría?</summary><div id="cGuiaLista"></div></details>
       <div id="cLista"></div>
     </section>
 
@@ -114,6 +115,15 @@
       <span>Anotar</span>
     </button>
   </nav>
+
+  <div class="velo" id="velo" hidden></div>
+  <div class="hoja" id="hoja" hidden>
+    <div class="hoja-asa"></div>
+    <div class="hoja-top"><div><div class="hoja-tit" id="hTit"></div><div class="hoja-def" id="hDef"></div></div>
+      <button class="icon-btn" id="hCerrar" aria-label="Cerrar">✕</button></div>
+    <div class="hoja-res" id="hRes"></div>
+    <div class="lista" id="hLista"></div>
+  </div>
 
   <div class="toast" id="toast" hidden></div>
 

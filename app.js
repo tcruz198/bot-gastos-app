@@ -122,6 +122,7 @@ function pintar() {
   pintarMes(d);
   pintarClasificar(d);
   pintarAnotarCats(d);
+  pintarGuia(d);
   const mios = pendientesDe(d, 'mios').length;
   $('badge').hidden = !mios;
   $('badge').textContent = mios > 99 ? '99+' : mios;
@@ -135,12 +136,35 @@ function pintarTitulo() {
   $('topSub').textContent = d ? 'Hola ' + d.persona : 'Gastos';
 }
 
+// Emoji por categoría: solo adorno, una categoría nueva sale con 🏷️.
+const EMOJI = {
+  'comida': '🥦', 'chatarra': '🍟', 'entretenimiento': '🎉', 'transporte': '🚗',
+  'suscripciones': '🔁', 'salud': '💊', 'lucas': '👶', 'mejoras hogar': '🪴',
+  'gasto fijo': '🏠', 'deudas': '💳', 'otros': '📦', 'sin clasificar': '🏷️'
+};
+const emojiDe = (c) => EMOJI[norm(c)] || '🏷️';
+// Orden fijo del día a día: así Marta encuentra cada tarjeta siempre en el mismo lugar.
+const ORDEN = ['comida', 'chatarra', 'entretenimiento', 'transporte', 'lucas', 'salud',
+               'suscripciones', 'mejoras hogar', 'otros'];
+const FIJOS = ['gasto fijo'];
+
+function esMetaApp(d, c) { return (d.metas || ['Deudas']).some((m) => norm(m) === norm(c)); }
+
+/** verde = va al ritmo del mes, amarillo = va más rápido que el mes, rojo = se pasó. */
+function ritmo(pct, avance) {
+  if (pct >= 100) return { clase: 'rojo', txt: 'se pasó' };
+  if (pct > avance + 10) return { clase: 'amarillo', txt: 'va rápido' };
+  return { clase: 'verde', txt: 'al ritmo' };
+}
+
 function pintarMes(d) {
-  $('mTotal').textContent = pesos(d.total);
-  $('mIngresos').textContent = d.ingresos ? pesos(d.ingresos) : '—';
   const queda = d.ingresos - d.total;
   $('mQueda').textContent = d.ingresos ? pesos(queda) : '—';
-  $('mCantidad').textContent = d.cantidad;
+  $('mQueda').classList.toggle('neg', queda < 0);
+  const faltan = d.diasRestantes ?? null;
+  $('mHeroSub').innerHTML = `Gastado <b>${pesos(d.total)}</b>${d.ingresos ? ' de ' + pesos(d.ingresos) : ''}` +
+    (faltan !== null ? ` · faltan <b>${faltan}</b> día${faltan === 1 ? '' : 's'}` : '') +
+    ` · ${d.cantidad} gastos`;
 
   const tot = (d.tomas + d.marta) || 1;
   $('mSplit').innerHTML =
@@ -159,35 +183,99 @@ function pintarMes(d) {
     $('mAvisoPend').innerHTML = `🏷️ <span>Tienes <b>${pend.length}</b> gasto${pend.length > 1 ? 's' : ''} sin categoría. <u>Clasificar</u></span>`;
   }
 
-  // Presupuesto: lo más gastado arriba. La rayita marca cuánto va del mes.
   $('mAvance').textContent = '· va el ' + d.avanceMes + '% del mes';
-  const pres = [...d.presupuesto].sort((a, b) => b.gasto / b.tope - a.gasto / a.tope);
-  $('mPresupuesto').innerHTML = pres.length ? pres.map((p) => {
-    const pct = Math.round(p.gasto / p.tope * 100);
-    const color = pct >= 100 ? 'var(--rojo)' : pct >= 80 ? 'var(--amarillo)' : 'var(--menta)';
-    return `<div class="pres">
-      <div class="pres-top"><b>${esc(p.categoria)}</b><span>${pesos(p.gasto)} de ${pesos(p.tope)} · ${pct}%</span></div>
-      <div class="barra"><i style="width:${Math.min(pct, 100)}%;background:${color}"></i><span class="hoy" style="left:${d.avanceMes}%"></span></div>
-    </div>`;
-  }).join('') : '<div class="muted">Sin topes definidos en la hoja Presupuesto.</div>';
+  const pres = d.presupuesto || [];
 
-  const conTope = new Set(d.presupuesto.map((p) => norm(p.categoria)));
+  // Meta de deuda: acá llenar la barra es lo bueno.
+  const meta = pres.find((p) => esMetaApp(d, p.categoria));
+  $('mMeta').hidden = !meta;
+  if (meta) {
+    const pct = Math.round(meta.gasto / meta.tope * 100);
+    const falta = meta.tope - meta.gasto;
+    $('mMeta').dataset.cat = meta.categoria;
+    $('mMeta').innerHTML = `
+      <div class="meta-top"><span class="meta-emoji">${emojiDe(meta.categoria)}</span>
+        <div><div class="meta-tit">Meta de ${esc(meta.categoria.toLowerCase())}</div>
+        <div class="meta-sub">${falta > 0 ? 'faltan <b>' + pesos(falta) + '</b> para la meta' : '🎉 ¡Meta cumplida!'}</div></div>
+        <div class="meta-pct">${pct}%</div></div>
+      <div class="barra gruesa"><i style="width:${Math.min(pct, 100)}%;background:var(--menta)"></i></div>
+      <div class="meta-pie">Pagado ${pesos(meta.gasto)} de ${pesos(meta.tope)}</div>`;
+  }
+
+  const tarjeta = (p, ancha) => {
+    const pct = Math.round(p.gasto / p.tope * 100);
+    // Los fijos se pagan a principio de mes: el ritmo del mes no aplica.
+    const r = ancha && pct < 100 ? { clase: 'neutro', txt: pct + '% pagado' } : ritmo(pct, d.avanceMes);
+    const queda = p.tope - p.gasto;
+    return `<button class="cat ${r.clase}${ancha ? ' ancha' : ''}" data-cat="${esc(p.categoria)}">
+      <div class="cat-top"><span class="cat-emoji">${emojiDe(p.categoria)}</span><span class="cat-nom">${esc(p.categoria)}</span></div>
+      <div class="cat-label">${queda >= 0 ? 'Quedan' : 'Pasado por'}</div>
+      <div class="cat-monto">${pesos(Math.abs(queda))}</div>
+      <div class="barra"><i style="width:${Math.min(pct, 100)}%"></i><span class="hoy" style="left:${d.avanceMes}%"></span></div>
+      <div class="cat-pie"><span>${pesos(p.gasto)} de ${pesos(p.tope)}</span><span class="cat-ritmo">${r.txt}</span></div>
+    </button>`;
+  };
+
+  const posicion = (c) => { const i = ORDEN.indexOf(norm(c)); return i === -1 ? 99 : i; };
+  const diaADia = pres.filter((p) => !esMetaApp(d, p.categoria) && !FIJOS.includes(norm(p.categoria)))
+    .sort((a, b) => posicion(a.categoria) - posicion(b.categoria));
+  $('mCats').innerHTML = diaADia.length ? diaADia.map((p) => tarjeta(p)).join('')
+    : '<div class="card muted">Sin topes definidos en la hoja Presupuesto.</div>';
+
+  const fijos = pres.filter((p) => FIJOS.includes(norm(p.categoria)));
+  $('mFijos').innerHTML = fijos.length ? '<h3 class="sec">Fijos del depto</h3>' +
+    '<div class="grid-cats">' + fijos.map((p) => tarjeta(p, true)).join('') + '</div>' : '';
+
+  const conTope = new Set(pres.map((p) => norm(p.categoria)));
   const sinTope = d.porCategoria.filter((c) => !conTope.has(norm(c.categoria)));
   $('mSinTopeTit').hidden = $('mSinTope').hidden = !sinTope.length;
   $('mSinTope').innerHTML = sinTope.map((c) =>
     `<div class="fila"><span class="${norm(c.categoria) === 'sin clasificar' ? 'tag-sin' : ''}">${esc(c.categoria)}</span><span class="monto">${pesos(c.monto)}</span></div>`).join('');
 
-  // Últimos gastos agrupados por día.
+  $('mRecientes').innerHTML = listaMovs(d.recientes) || '<div class="muted">Todavía no hay gastos este mes.</div>';
+}
+
+/** Gastos agrupados por día (se usa en el mes y en el detalle de una categoría). */
+function listaMovs(movs) {
   let html = '', diaPrevio = '';
-  d.recientes.forEach((m) => {
+  movs.forEach((m) => {
     if (m.fecha !== diaPrevio) { html += `<div class="dia">${diaLegible(m.fecha)}</div>`; diaPrevio = m.fecha; }
     const sin = !m.categoria || norm(m.categoria) === 'sin clasificar';
+    const detalle = m.comercio && m.notas ? m.notas : (sin ? '' : m.categoria);
     html += `<div class="fila">
       <div class="mov-izq"><div class="mov-nombre">${esc(nombreDe(m))}</div>
-      <div class="mov-meta"><i class="punto" style="background:var(--${m.persona === 'Marta' ? 'marta' : 'tomas'})"></i>${sin ? '<span class="tag-sin">sin categoría</span>' : esc(m.categoria)}</div></div>
+      <div class="mov-meta"><i class="punto" style="background:var(--${m.persona === 'Marta' ? 'marta' : 'tomas'})"></i>${sin ? '<span class="tag-sin">sin categoría</span>' : esc(detalle)}</div></div>
       <div class="monto">${montoDe(m)}</div></div>`;
   });
-  $('mRecientes').innerHTML = html || '<div class="muted">Todavía no hay gastos este mes.</div>';
+  return html;
+}
+
+/** Hoja de abajo con los gastos del mes de una categoría. */
+function abrirCategoria(cat) {
+  const d = estado.datos; if (!d) return;
+  const movs = (d.delMes || d.recientes).filter((m) => norm(m.categoria) === norm(cat));
+  const p = (d.presupuesto || []).find((x) => norm(x.categoria) === norm(cat));
+  const gasto = movs.filter((m) => m.moneda !== 'USD').reduce((s, m) => s + m.monto, 0);
+  $('hTit').textContent = emojiDe(cat) + ' ' + cat;
+  $('hDef').textContent = (d.definiciones || {})[cat] || '';
+  $('hRes').innerHTML = p
+    ? `<div><span>Gastado</span><b>${pesos(p.gasto)}</b></div><div><span>${esMetaApp(d, cat) ? 'Meta' : 'Tope'}</span><b>${pesos(p.tope)}</b></div>` +
+      `<div><span>${esMetaApp(d, cat) ? 'Falta' : 'Quedan'}</span><b>${pesos(Math.max(p.tope - p.gasto, 0))}</b></div>`
+    : `<div><span>Gastado</span><b>${pesos(gasto)}</b></div>`;
+  $('hLista').innerHTML = listaMovs(movs) || '<div class="muted">Nada este mes todavía.</div>';
+  $('velo').hidden = $('hoja').hidden = false;
+  requestAnimationFrame(() => { $('velo').classList.add('on'); $('hoja').classList.add('on'); });
+}
+function cerrarHoja() {
+  $('velo').classList.remove('on'); $('hoja').classList.remove('on');
+  setTimeout(() => { $('velo').hidden = $('hoja').hidden = true; }, 220);
+}
+
+function pintarGuia(d) {
+  const defs = d.definiciones || {};
+  $('cGuia').hidden = !Object.keys(defs).length;
+  $('cGuiaLista').innerHTML = d.categorias.map((c) =>
+    `<div class="guia-fila"><b>${emojiDe(c)} ${esc(c)}</b><span>${esc(defs[c] || '')}</span></div>`).join('');
 }
 
 function norm(s) {
@@ -214,13 +302,13 @@ function pintarClasificar(d) {
       </div>
       <div class="gasto-meta">${diaLegible(m.fecha)} ${esc(m.hora)} · ${esc(m.persona)}${m.tipo ? ' · ' + esc(m.tipo) : ''}</div>
       ${m.comercio && m.notas ? `<div class="gasto-nota">📝 ${esc(m.notas)}</div>` : ''}
-      <div class="chips">${d.categorias.map((c) => `<button class="chip" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+      <div class="chips">${d.categorias.map((c) => `<button class="chip" data-cat="${esc(c)}">${emojiDe(c)} ${esc(c)}</button>`).join('')}</div>
     </div>`).join('');
 }
 
 function pintarAnotarCats(d) {
   $('aCats').innerHTML = d.categorias.map((c) =>
-    `<button class="chip${c === estado.catNueva ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+    `<button class="chip${c === estado.catNueva ? ' on' : ''}" data-cat="${esc(c)}">${emojiDe(c)} ${esc(c)}</button>`).join('');
 }
 
 // --- Acciones -------------------------------------------------------------
@@ -324,6 +412,11 @@ function conectar() {
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => irA(b.dataset.tab)));
   $('btnRefrescar').addEventListener('click', refrescar);
   $('mAvisoPend').addEventListener('click', () => irA('vClasificar'));
+  ['mCats', 'mFijos', 'mMeta'].forEach((id) => $(id).addEventListener('click', (e) => {
+    const t = e.target.closest('[data-cat]'); if (t) abrirCategoria(t.dataset.cat);
+  }));
+  $('velo').addEventListener('click', cerrarHoja);
+  $('hCerrar').addEventListener('click', cerrarHoja);
 
   $('segQuien').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
