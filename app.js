@@ -288,7 +288,9 @@ function pendientesDe(d, quien) {
 }
 
 function pintarClasificar(d) {
-  const lista = pendientesDe(d, estado.quien);
+  // Del más nuevo al más viejo (la API ya los manda así; esto es por si acaso).
+  const lista = pendientesDe(d, estado.quien).slice()
+    .sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora));
   if (!lista.length) {
     $('cLista').innerHTML = `<div class="vacio"><div class="emoji">✨</div><b>Todo clasificado</b>${
       estado.quien === 'mios' ? 'No te queda ningún gasto sin categoría.' : 'No queda nada pendiente de ninguno.'}</div>`;
@@ -301,7 +303,8 @@ function pintarClasificar(d) {
         <div class="gasto-monto">${montoDe(m)}</div>
       </div>
       <div class="gasto-meta">${diaLegible(m.fecha)} ${esc(m.hora)} · ${esc(m.persona)}${m.tipo ? ' · ' + esc(m.tipo) : ''}</div>
-      ${m.comercio && m.notas ? `<div class="gasto-nota">📝 ${esc(m.notas)}</div>` : ''}
+      <input class="gasto-input" type="text" placeholder="Qué fue (ej: feria, regalo Cony…)" value="${esc(m.comercio ? m.notas : '')}" autocomplete="off" enterkeyhint="done">
+      <div class="gasto-ayuda">Escribe qué fue y toca la categoría para guardar.</div>
       <div class="chips">${d.categorias.map((c) => `<button class="chip" data-cat="${esc(c)}">${emojiDe(c)} ${esc(c)}</button>`).join('')}</div>
     </div>`).join('');
 }
@@ -321,14 +324,15 @@ async function clasificar(card, categoria) {
   actualizarBadge();
 
   try {
-    const r = await llamar('clasificar', { id, cat: categoria });
+    const nota = (card.querySelector('.gasto-input')?.value || '').trim();
+    const r = await llamar('clasificar', { id, cat: categoria, nota });
     if (!r.ok) throw new Error(r.error || 'No se pudo guardar');
     // Recién con la respuesta de Google se da por guardado.
     estado.datos.sinCategoria = estado.datos.sinCategoria.filter((x) => x.id !== id);
     const rec = estado.datos.recientes.find((x) => x.id === id);
-    if (rec) rec.categoria = categoria;
+    if (rec) { rec.categoria = categoria; if (nota) rec.notas = nota; }
     guardarLS(LS_DATOS, estado.datos);
-    aviso('✅ Guardado: ' + nombreDe(m) + ' → ' + categoria);
+    aviso('✅ Guardado: ' + nombreDe(m) + ' → ' + categoria + (nota ? ' · ' + nota : ''));
   } catch (e) {
     aviso(e.message + ' — no se guardó.', true);
   } finally {
@@ -425,6 +429,9 @@ function conectar() {
     pintarClasificar(estado.datos);
   });
 
+  $('cLista').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.classList.contains('gasto-input')) e.target.blur();
+  });
   $('cLista').addEventListener('click', (e) => {
     const chip = e.target.closest('.chip'); if (!chip) return;
     clasificar(chip.closest('.gasto'), chip.dataset.cat);
