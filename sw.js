@@ -1,7 +1,7 @@
 // Guarda la app (no los datos) para que abra al instante y sin señal.
 // Subir VERSION en cada cambio de la app, o los teléfonos siguen con la vieja.
-const VERSION = 'gastos-v6';
-const ARCHIVOS = ['./', 'index.html', 'app.css?v=6', 'app.js?v=6', 'manifest.webmanifest',
+const VERSION = 'gastos-v7';
+const ARCHIVOS = ['./', 'index.html', 'app.css?v=7', 'app.js?v=7', 'manifest.webmanifest',
                   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

@@ -189,6 +189,8 @@ function pintarMes(d) {
     (faltan !== null ? ` · faltan <b>${faltan}</b> día${faltan === 1 ? '' : 's'}` : '') +
     ` · ${d.cantidad} gastos`;
 
+  pintarHoy(d);
+
   const tot = (d.tomas + d.marta) || 1;
   $('mSplit').innerHTML =
     `<i style="width:${d.tomas / tot * 100}%;background:var(--tomas)"></i>` +
@@ -256,6 +258,46 @@ function pintarMes(d) {
     `<div class="fila"><span class="${norm(c.categoria) === 'sin clasificar' ? 'tag-sin' : ''}">${esc(c.categoria)}</span><span class="monto">${pesos(c.monto)}</span></div>`).join('');
 
   $('mRecientes').innerHTML = listaMovs(d.recientes) || '<div class="muted">Todavía no hay gastos este mes.</div>';
+}
+
+// Lo que se decide día a día. Fuera: fijos, deudas, suscripciones (se cobran
+// solas) y salud (imprevisto: no es plata "disponible" para gastar).
+const FLEXIBLES = ['comida', 'chatarra', 'entretenimiento', 'transporte', 'lucas', 'mejoras hogar', 'otros'];
+
+function hoyIso() {
+  const h = new Date();
+  return h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0') + '-' + String(h.getDate()).padStart(2, '0');
+}
+
+/**
+ * «Hoy pueden gastar $X»: lo que queda del día a día al empezar el día,
+ * repartido en los días que faltan (hoy incluido). Se recalcula cada día:
+ * si ayer se pasaron, hoy toca menos.
+ */
+function pintarHoy(d) {
+  const flex = (d.presupuesto || []).filter((p) => FLEXIBLES.includes(norm(p.categoria)));
+  const caja = $('mHoy');
+  if (!caja || !flex.length) { if (caja) caja.hidden = true; return; }
+
+  const tope = flex.reduce((s, p) => s + p.tope, 0);
+  const gastado = flex.reduce((s, p) => s + p.gasto, 0);
+  const hoy = hoyIso();
+  const gastoHoy = (d.delMes || d.recientes || [])
+    .filter((m) => m.fecha === hoy && m.moneda !== 'USD' && FLEXIBLES.includes(norm(m.categoria)))
+    .reduce((s, m) => s + m.monto, 0);
+
+  const ahora = new Date();
+  const diasMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).getDate();
+  const dias = (d.diasRestantes ?? (diasMes - ahora.getDate())) + 1;
+
+  const porDia = Math.max(tope - (gastado - gastoHoy), 0) / dias;
+  const quedaHoy = porDia - gastoHoy;
+  caja.hidden = false;
+  caja.className = 'hoy-box ' + (quedaHoy < 0 ? 'rojo' : quedaHoy < porDia * 0.3 ? 'amarillo' : 'verde');
+  caja.innerHTML = `
+    <div class="hoy-izq"><span>Hoy pueden gastar</span><b>${pesos(porDia)}</b></div>
+    <div class="hoy-der">${gastoHoy ? `llevan ${pesos(gastoHoy)}<br>` : ''}<b>${quedaHoy >= 0 ? 'quedan ' + pesos(quedaHoy) : 'pasados ' + pesos(-quedaHoy)}</b></div>
+    <div class="hoy-nota">Comida, chatarra, entretenimiento, transporte, Lucas y hogar · ${dias === 1 ? "último día del mes" : dias + " días contando hoy"}</div>`;
 }
 
 /** Gastos agrupados por día (se usa en el mes y en el detalle de una categoría). */
@@ -327,8 +369,12 @@ function pintarClasificar(d) {
       </div>
       <div class="gasto-meta">${diaLegible(m.fecha)} ${esc(m.hora)} · ${esc(m.persona)}${m.tipo ? ' · ' + esc(m.tipo) : ''}</div>
       <input class="gasto-input" type="text" placeholder="Qué fue (ej: feria, regalo Cony…)" value="${esc(m.comercio ? m.notas : '')}" autocomplete="off" enterkeyhint="done">
-      <div class="gasto-ayuda">Escribe qué fue y toca la categoría para guardar.</div>
-      <div class="chips">${d.categorias.map((c) => `<button class="chip" data-cat="${esc(c)}">${emojiDe(c)} ${esc(c)}</button>`).join('')}</div>
+      <div class="gasto-ayuda">${m.sugerida ? 'Si está bien, toca la sugerida. Puedes escribir qué fue antes.' : 'Escribe qué fue y toca la categoría para guardar.'}</div>
+      ${m.sugerida ? `<button class="chip sugerida" data-cat="${esc(m.sugerida.categoria)}">
+        <span>✓ ${emojiDe(m.sugerida.categoria)} ${esc(m.sugerida.categoria)}</span>
+        <small>${m.sugerida.total > 1 ? `así quedó ${m.sugerida.veces} de ${m.sugerida.total} veces` : 'así quedó la vez anterior'}</small></button>
+        <div class="otra">u otra:</div>` : ''}
+      <div class="chips">${d.categorias.filter((c) => !m.sugerida || c !== m.sugerida.categoria).map((c) => `<button class="chip" data-cat="${esc(c)}">${emojiDe(c)} ${esc(c)}</button>`).join('')}</div>
     </div>`).join('');
 }
 
