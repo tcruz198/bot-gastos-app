@@ -2,8 +2,8 @@
   "name": "Gastos",
   "short_name": "Gastos",
   "display": "standalone",
-  "background_color": "#14102A",
-  "theme_color": "#14102A",
+  "background_color": "#04231C",
+  "theme_color": "#04231C",
   "lang": "es-CL",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },

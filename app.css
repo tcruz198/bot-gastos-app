@@ -1,33 +1,39 @@
 :root {
-  --bg: #14102A;
-  --bg2: #1E1838;
-  --card: #241D42;
-  --linea: #352C5C;
-  --texto: #F4F1FF;
-  --suave: #A79FCB;
-  --oro: #F5B841;
+  --bg: #04231C;
+  --bg2: #083328;
+  --card: #0C3D31;
+  --linea: #17533F;
+  --texto: #ECFDF5;
+  --suave: #93C5B4;
+  --oro: #F6C453;
   --menta: #6EE7B7;
-  --rojo: #FF7A7A;
-  --amarillo: #FFD166;
-  --tomas: #7AA7FF;
-  --marta: #FF8FC7;
+  --rojo: #FF8A80;
+  --amarillo: #FCD34D;
+  --tomas: #7DD3FC;
+  --marta: #F9A8D4;
+  --hero1: #0F8A63;
+  --hero2: #064E3B;
+  --hero-suave: #B7EBD6;
   --radio: 18px;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg: #F6F4FB;
-    --bg2: #ECE8F7;
+    --bg: #EEF8F3;
+    --bg2: #DDF1E7;
     --card: #FFFFFF;
-    --linea: #E3DDF2;
-    --texto: #1B1533;
-    --suave: #6E6690;
-    --oro: #D8961A;
-    --menta: #10A374;
-    --rojo: #E04848;
-    --amarillo: #C98A00;
-    --tomas: #3D6FE0;
-    --marta: #D9468F;
+    --linea: #CBE7DA;
+    --texto: #053027;
+    --suave: #4B7A6A;
+    --oro: #C98A12;
+    --menta: #059669;
+    --rojo: #D9473C;
+    --amarillo: #B7791F;
+    --tomas: #0284C7;
+    --marta: #DB2777;
+    --hero1: #10A37A;
+    --hero2: #065F46;
+    --hero-suave: #D1FAE5;
     color-scheme: light;
   }
 }
@@ -72,18 +78,19 @@ main { padding: 4px 16px 16px; max-width: 560px; margin: 0 auto; }
 .sec { font-size: 15px; margin: 22px 4px 10px; letter-spacing: 0.2px; }
 
 /* --- Mes --- */
-.hero { background: linear-gradient(145deg, #3A2470, #1E1838); color: #F4F1FF; }
-.hero-label { color: #C9BFF0; font-size: 14px; }
+.hero { position: relative; overflow: hidden; background: linear-gradient(150deg, var(--hero1), var(--hero2)); color: #F0FDF7; }
+.hero > * { position: relative; }
+.hero-label { color: var(--hero-suave); font-size: 14px; }
 .hero-monto { font-size: 44px; font-weight: 800; letter-spacing: -1.5px; margin: 2px 0 14px; font-variant-numeric: tabular-nums; }
 .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.hero-grid span { display: block; color: #C9BFF0; font-size: 12px; }
+.hero-grid span { display: block; color: var(--hero-suave); font-size: 12px; }
 .hero-grid b { font-size: 16px; font-variant-numeric: tabular-nums; }
 .split { display: flex; height: 8px; border-radius: 8px; overflow: hidden; margin-top: 16px; background: rgba(255,255,255,0.12); }
 .split i { display: block; height: 100%; }
-.split-leyenda { display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; color: #DCD4FA; }
+.split-leyenda { display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; color: #E3FBF1; }
 .split-leyenda b { font-variant-numeric: tabular-nums; }
 .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
-.usd { margin-top: 10px; font-size: 13px; color: #C9BFF0; }
+.usd { margin-top: 10px; font-size: 13px; color: var(--hero-suave); }
 
 .aviso {
   display: flex; align-items: center; gap: 10px;
@@ -151,7 +158,7 @@ main { padding: 4px 16px 16px; max-width: 560px; margin: 0 auto; }
 .anotar .seg { margin-bottom: 0; }
 .btn {
   display: block; width: 100%; margin-top: 16px; padding: 13px;
-  border-radius: 14px; background: var(--oro); color: #1B1533; font-weight: 800; font-size: 17px;
+  border-radius: 14px; background: var(--oro); color: #3A2A05; font-weight: 800; font-size: 17px;
 }
 .btn.grande { padding: 16px; margin-top: 22px; }
 .btn:disabled { opacity: 0.55; }
@@ -198,8 +205,8 @@ main { padding: 4px 16px 16px; max-width: 560px; margin: 0 auto; }
 .cargando { color: var(--suave); text-align: center; padding: 30px; }
 
 /* --- v2: tarjetas por categoría (04-11) --- */
-.hero-monto.neg { color: #FFB0B0; }
-.hero-sub { color: #DCD4FA; font-size: 14px; margin-top: -8px; }
+.hero-monto.neg { color: #FFC9C2; }
+.hero-sub { color: #E3FBF1; font-size: 14px; margin-top: -8px; }
 .hero-sub b { color: #fff; font-variant-numeric: tabular-nums; }
 
 .meta { margin-top: 12px; cursor: pointer; border: 1.5px solid color-mix(in srgb, var(--menta) 35%, transparent); }
@@ -272,17 +279,26 @@ main { padding: 4px 16px 16px; max-width: 560px; margin: 0 auto; }
 
 /* --- v7: hoy pueden gastar + sugerida (04-11) --- */
 .hoy-box { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center;
-  margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.08);
+  margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: rgba(2,44,34,0.28);
   border-left: 4px solid var(--c); }
 .hoy-box.verde { --c: #6EE7B7; } .hoy-box.amarillo { --c: #FFD166; } .hoy-box.rojo { --c: #FF7A7A; }
-.hoy-izq span { display: block; color: #C9BFF0; font-size: 13px; }
+.hoy-izq span { display: block; color: var(--hero-suave); font-size: 13px; }
 .hoy-izq b { font-size: 26px; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
-.hoy-der { text-align: right; font-size: 13px; color: #DCD4FA; font-variant-numeric: tabular-nums; }
+.hoy-der { text-align: right; font-size: 13px; color: #E3FBF1; font-variant-numeric: tabular-nums; }
 .hoy-der b { color: var(--c); font-size: 15px; }
-.hoy-nota { grid-column: 1 / -1; font-size: 11.5px; color: #A79FCB; }
+.hoy-nota { grid-column: 1 / -1; font-size: 11.5px; color: var(--hero-suave); }
 
 .chip.sugerida { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px;
   padding: 13px 16px; border-radius: 14px; background: color-mix(in srgb, var(--menta) 18%, var(--card));
   border: 1.5px solid var(--menta); font-size: 16px; margin-bottom: 8px; text-align: left; }
 .chip.sugerida small { color: var(--suave); font-weight: 500; font-size: 12px; }
 .otra { font-size: 12px; color: var(--suave); margin: 2px 2px 8px; }
+
+/* --- v8: esmeralda + los tres (04-11) --- */
+.familia { position: absolute !important; right: 14px; top: 26px; width: 150px; height: auto;
+  color: #022C22; opacity: 0.22; pointer-events: none; }
+.hero .split, .hero .split-leyenda, .hero .hoy-box { position: relative; z-index: 1; }
+.familia-chica { width: 120px; color: var(--menta); opacity: 0.55; margin: 0 auto 8px; display: block; }
+.pie-casa { text-align: center; color: var(--suave); font-size: 12px; opacity: 0.7; margin: 26px 0 6px; }
+.pie-casa svg { width: 54px; display: block; margin: 0 auto 4px; color: var(--menta); opacity: 0.6; }
+.setup .cerdito { width: 84px; height: 84px; border-radius: 20px; display: block; margin: 0 auto 6px; }

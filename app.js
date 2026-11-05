@@ -159,6 +159,9 @@ function pintarTitulo() {
   $('topSub').textContent = d ? 'Hola ' + d.persona : 'Gastos';
 }
 
+// La misma silueta de los tres que va en el index (de la mano, discreta).
+const FAMILIA_SVG = '<svg class="familia-chica" viewBox="0 0 200 120" aria-hidden="true"><g fill="currentColor"><circle cx="40" cy="24" r="11"/><rect x="28" y="38" width="24" height="46" rx="11"/><rect x="30" y="78" width="9" height="40" rx="4.5"/><rect x="41" y="78" width="9" height="40" rx="4.5"/><circle cx="100" cy="66" r="8"/><rect x="91" y="76" width="18" height="25" rx="8"/><rect x="93" y="96" width="6.5" height="22" rx="3.2"/><rect x="100.5" y="96" width="6.5" height="22" rx="3.2"/><circle cx="160" cy="26" r="10"/><circle cx="169" cy="21" r="5"/><path d="M151 38 h18 q4 0 5 5 l7 41 h-42 l7 -41 q1 -5 5 -5 z"/><rect x="151" y="82" width="7" height="36" rx="3.5"/><rect x="162" y="82" width="7" height="36" rx="3.5"/></g><g fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"><path d="M50 46 Q72 70 91 83"/><path d="M150 46 Q128 70 109 83"/><path d="M30 46 Q22 66 25 82"/><path d="M170 46 Q179 66 177 80"/></g></svg>';
+
 // Emoji por categoría: solo adorno, una categoría nueva sale con 🏷️.
 const EMOJI = {
   'comida': '🥦', 'chatarra': '🍟', 'entretenimiento': '🎉', 'transporte': '🚗',
@@ -357,7 +360,7 @@ function pintarClasificar(d) {
   const lista = pendientesDe(d, estado.quien).slice()
     .sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora));
   if (!lista.length) {
-    $('cLista').innerHTML = `<div class="vacio"><div class="emoji">✨</div><b>Todo clasificado</b>${
+    $('cLista').innerHTML = `<div class="vacio">${FAMILIA_SVG}<b>Todo en orden en casa</b>${
       estado.quien === 'mios' ? 'No te queda ningún gasto sin categoría.' : 'No queda nada pendiente de ninguno.'}</div>`;
     return;
   }
@@ -566,11 +569,11 @@ function iniciar() {
 
 // Si algo revienta al arrancar, mostrarlo en vez de dejar la pantalla en negro.
 function pantallaDeError(e) {
-  document.body.innerHTML = '<div style="padding:60px 24px;text-align:center;font:16px -apple-system,sans-serif;color:#F4F1FF;background:#14102A;min-height:100vh">' +
+  document.body.innerHTML = '<div style="padding:60px 24px;text-align:center;font:16px -apple-system,sans-serif;color:#ECFDF5;background:#04231C;min-height:100vh">' +
     '<div style="font-size:44px">🔄</div><h2>La app se quedó a medio actualizar</h2>' +
-    '<p style="color:#A79FCB">Toca el botón para cargar la versión nueva.</p>' +
-    '<button id="btnReparar" style="margin-top:12px;padding:14px 22px;border:0;border-radius:14px;background:#F5B841;color:#1B1533;font-weight:800;font-size:17px">Recargar</button>' +
-    '<p style="color:#A79FCB;font-size:12px;margin-top:24px">' + String(e && e.message || e).replace(/[<>&]/g, '') + '</p></div>';
+    '<p style="color:#93C5B4">Toca el botón para cargar la versión nueva.</p>' +
+    '<button id="btnReparar" style="margin-top:12px;padding:14px 22px;border:0;border-radius:14px;background:#F6C453;color:#3A2A05;font-weight:800;font-size:17px">Recargar</button>' +
+    '<p style="color:#93C5B4;font-size:12px;margin-top:24px">' + String(e && e.message || e).replace(/[<>&]/g, '') + '</p></div>';
   document.getElementById('btnReparar').onclick = async () => {
     try {
       const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
