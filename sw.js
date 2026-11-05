@@ -1,7 +1,7 @@
 // Guarda la app (no los datos) para que abra al instante y sin señal.
 // Subir VERSION en cada cambio de la app, o los teléfonos siguen con la vieja.
-const VERSION = 'gastos-v5';
-const ARCHIVOS = ['./', 'index.html', 'app.css', 'app.js', 'manifest.webmanifest',
+const VERSION = 'gastos-v6';
+const ARCHIVOS = ['./', 'index.html', 'app.css?v=6', 'app.js?v=6', 'manifest.webmanifest',
                   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -19,7 +19,9 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (url.origin !== location.origin || e.request.method !== 'GET') return;
   e.respondWith(
-    fetch(e.request)
+    // no-cache: siempre pregunta al servidor si hay versión nueva. Sin esto el
+    // teléfono mezcló un index.html viejo con un app.js nuevo y quedó en negro (04-11).
+    fetch(e.request, { cache: 'no-cache' })
       .then((r) => {
         const copia = r.clone();
         caches.open(VERSION).then((c) => c.put(e.request, copia));

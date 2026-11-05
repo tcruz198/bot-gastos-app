@@ -435,49 +435,52 @@ function aviso(texto, esError) {
 
 // --- Arranque -------------------------------------------------------------
 
+/** addEventListener que no revienta si el elemento no está (HTML viejo en caché). */
+function on(id, evento, fn) { const el = $(id); if (el) el.addEventListener(evento, fn); }
+
 function conectar() {
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => irA(b.dataset.tab)));
-  $('btnRefrescar').addEventListener('click', refrescar);
-  $('mAvisoPend').addEventListener('click', () => irA('vClasificar'));
-  ['mCats', 'mFijos', 'mMeta'].forEach((id) => $(id).addEventListener('click', (e) => {
+  on('btnRefrescar', 'click', refrescar);
+  on('mAvisoPend', 'click', () => irA('vClasificar'));
+  ['mCats', 'mFijos', 'mMeta'].forEach((id) => on(id, 'click', (e) => {
     const t = e.target.closest('[data-cat]'); if (t) abrirCategoria(t.dataset.cat);
   }));
-  $('velo').addEventListener('click', cerrarHoja);
-  $('hCerrar').addEventListener('click', cerrarHoja);
+  on('velo', 'click', cerrarHoja);
+  on('hCerrar', 'click', cerrarHoja);
 
-  $('segQuien').addEventListener('click', (e) => {
+  on('segQuien', 'click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
     estado.quien = b.dataset.v;
     $('segQuien').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
     pintarClasificar(estado.datos);
   });
 
-  $('cLista').addEventListener('keydown', (e) => {
+  on('cLista', 'keydown', (e) => {
     if (e.key === 'Enter' && e.target.classList.contains('gasto-input')) e.target.blur();
   });
-  $('cLista').addEventListener('click', (e) => {
+  on('cLista', 'click', (e) => {
     const chip = e.target.closest('.chip'); if (!chip) return;
     clasificar(chip.closest('.gasto'), chip.dataset.cat);
   });
 
-  $('aTipo').addEventListener('click', (e) => {
+  on('aTipo', 'click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
     estado.tipo = b.dataset.v;
     $('aTipo').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
   });
-  $('aCats').addEventListener('click', (e) => {
+  on('aCats', 'click', (e) => {
     const chip = e.target.closest('.chip'); if (!chip) return;
     estado.catNueva = estado.catNueva === chip.dataset.cat ? '' : chip.dataset.cat;
     pintarAnotarCats(estado.datos);
   });
-  $('aMonto').addEventListener('input', (e) => {
+  on('aMonto', 'input', (e) => {
     const n = e.target.value.replace(/\D/g, '');
     e.target.value = n ? Number(n).toLocaleString('es-CL') : '';
   });
-  $('aDesc').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
-  $('aGuardar').addEventListener('click', guardarNuevo);
+  on('aDesc', 'keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+  on('aGuardar', 'click', guardarNuevo);
 
-  $('setupGuardar').addEventListener('click', () => {
+  on('setupGuardar', 'click', () => {
     const cfg = configDeLink($('setupLink').value.trim());
     if (!cfg) { aviso('Ese link no sirve: tiene que ser el que manda el bot.', true); return; }
     guardarLS(LS_CFG, cfg);
@@ -515,4 +518,21 @@ function iniciar() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
-iniciar();
+// Si algo revienta al arrancar, mostrarlo en vez de dejar la pantalla en negro.
+function pantallaDeError(e) {
+  document.body.innerHTML = '<div style="padding:60px 24px;text-align:center;font:16px -apple-system,sans-serif;color:#F4F1FF;background:#14102A;min-height:100vh">' +
+    '<div style="font-size:44px">🔄</div><h2>La app se quedó a medio actualizar</h2>' +
+    '<p style="color:#A79FCB">Toca el botón para cargar la versión nueva.</p>' +
+    '<button id="btnReparar" style="margin-top:12px;padding:14px 22px;border:0;border-radius:14px;background:#F5B841;color:#1B1533;font-weight:800;font-size:17px">Recargar</button>' +
+    '<p style="color:#A79FCB;font-size:12px;margin-top:24px">' + String(e && e.message || e).replace(/[<>&]/g, '') + '</p></div>';
+  document.getElementById('btnReparar').onclick = async () => {
+    try {
+      const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
+      await Promise.all(regs.map((r) => r.unregister()));
+      const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k)));
+    } catch (x) { /* igual recarga */ }
+    location.reload();
+  };
+}
+
+try { iniciar(); } catch (e) { pantallaDeError(e); }
