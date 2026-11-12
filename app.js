@@ -147,6 +147,8 @@ function pintar() {
   pintarClasificar(d);
   pintarAnotarCats(d);
   pintarGuia(d);
+  if (d.delMes) cal.meses[d.mes] = d.delMes;
+  if (estado.vista === 'vDias' && cal.mes) pintarCalendario();
   const mios = pendientesDe(d, 'mios').length;
   $('badge').hidden = !mios;
   $('badge').textContent = mios > 99 ? '99+' : mios;
@@ -173,6 +175,7 @@ function pintarTitulo() {
   const nombre = d ? d.persona : '';
   const titulos = {
     vMes: nombre ? `Hola ${esc(nombre)} <span class="saluda">👋🏼</span>` : 'Gastos',
+    vDias: '📅 Calendario',
     vClasificar: '🏷️ Clasificar',
     vAnotar: '✍️ Anotar gasto'
   };
@@ -519,6 +522,166 @@ async function guardarNuevo() {
   }
 }
 
+// --- Calendario (12-11) ----------------------------------------------------
+// Qué día se gastó en qué: el mes en grilla, con filtro por categoría y persona.
+// «Todo» mira el día a día: sin Gasto fijo ni Deudas (el arriendo taparía todo).
+
+const FUERA_DEL_DIA_A_DIA = ['gasto fijo', 'deudas'];
+const cal = { mes: '', filtro: '', quien: 'todos', meses: {} };  // meses: 'aaaa-mm' → movs
+
+function mesActual() { return estado.datos?.mes || new Date().toISOString().slice(0, 7); }
+
+function moverMes(aaaamm, delta) {
+  const [a, m] = aaaamm.split('-').map(Number);
+  const f = new Date(a, m - 1 + delta, 1);
+  return f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0');
+}
+
+function abreviado(n) {
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(1).replace('.', ',') + 'M';
+  if (n >= 1000) return '$' + Math.round(n / 1000) + 'k';
+  return '$' + Math.round(n);
+}
+
+async function abrirCalendario() {
+  if (!cal.mes) cal.mes = mesActual();
+  if (estado.datos?.delMes) cal.meses[mesActual()] = estado.datos.delMes;
+  pintarCalendario();
+  if (!cal.meses[cal.mes]) await cargarMesCal(cal.mes);
+}
+
+async function cargarMesCal(mes) {
+  $('calGrid').classList.add('cargando-cal');
+  try {
+    const r = await llamar('calendario', { mes });
+    if (!r.ok) throw new Error(r.error || 'No pude leer ese mes');
+    cal.meses[mes] = (r.movs || []).map((m) => ({ ...m, fecha: fechaIso(m.fecha) }));
+  } catch (e) {
+    aviso(e.message, true);
+  } finally {
+    $('calGrid').classList.remove('cargando-cal');
+    if (cal.mes === mes) pintarCalendario();
+  }
+}
+
+/** Los gastos que cuentan con el filtro y la persona elegidos. */
+function movsDelCal() {
+  return (cal.meses[cal.mes] || []).filter((m) => {
+    if (m.moneda === 'USD') return false;
+    if (cal.quien !== 'todos' && m.persona !== cal.quien) return false;
+    if (cal.filtro) return norm(m.categoria) === norm(cal.filtro);
+    return FUERA_DEL_DIA_A_DIA.indexOf(norm(m.categoria)) < 0;
+  });
+}
+
+function pintarCalendario() {
+  const d = estado.datos;
+  const [a, m] = cal.mes.split('-').map(Number);
+  $('calMes').textContent = MESES[m - 1] + ' ' + a;
+  $('calDespues').disabled = cal.mes >= mesActual();
+
+  // Filtros: «Todo» + las categorías (sin las fijas, que no son de día a día... salvo que las pidan).
+  const cats = (d?.categorias || []).filter((c) => norm(c) !== 'sin recuerdo');
+  $('calFiltros').innerHTML = [`<button class="chip${cal.filtro ? '' : ' on'}" data-cal="">✨ Todo</button>`]
+    .concat(cats.map((c) => `<button class="chip${cal.filtro === c ? ' on' : ''}" data-cal="${esc(c)}">${emojiDe(c)} ${esc(c)}</button>`)).join('');
+
+  const movs = movsDelCal();
+  const porDia = {};
+  movs.forEach((x) => {
+    const dia = Number(x.fecha.slice(8, 10));
+    (porDia[dia] = porDia[dia] || { total: 0, n: 0, cats: {} });
+    porDia[dia].total += x.monto; porDia[dia].n++;
+    porDia[dia].cats[x.categoria] = (porDia[dia].cats[x.categoria] || 0) + x.monto;
+  });
+  const max = Math.max(1, ...Object.values(porDia).map((x) => x.total));
+  const hoy = new Date();
+  const esEsteMes = hoy.getFullYear() === a && hoy.getMonth() + 1 === m;
+  const diasMes = new Date(a, m, 0).getDate();
+  const corrimiento = (new Date(a, m - 1, 1).getDay() + 6) % 7; // lunes primero
+
+  let html = '<span class="cal-dia vacio"></span>'.repeat(corrimiento);
+  for (let dia = 1; dia <= diasMes; dia++) {
+    const info = porDia[dia];
+    const futuro = esEsteMes && dia > hoy.getDate();
+    const nivel = info ? Math.max(0.16, info.total / max) : 0;
+    const emoji = info ? (cal.filtro ? emojiDe(cal.filtro) : emojiDe(Object.keys(info.cats).sort((x, y) => info.cats[y] - info.cats[x])[0])) : '';
+    html += `<button class="cal-dia${info ? ' con' : ''}${futuro ? ' futuro' : ''}${esEsteMes && dia === hoy.getDate() ? ' hoy' : ''}"
+      ${info ? `data-dia="${dia}" style="--nivel:${nivel.toFixed(2)}"` : 'disabled'}>
+      <span class="cal-num">${dia}</span>${info ? `<span class="cal-emoji">${emoji}</span><span class="cal-monto">${abreviado(info.total)}</span>` : ''}</button>`;
+  }
+  $('calGrid').innerHTML = html;
+  $('calLey').textContent = cal.filtro
+    ? 'Cada cuadro marcado es un día con ' + cal.filtro + '. Más color, más gasto. Toca un día para ver el detalle.'
+    : 'Día a día, sin arriendo, gastos comunes ni deudas. El emoji es en lo que más se gastó ese día.';
+
+  pintarResumenCal(movs, porDia);
+  pintarSemanaCal(movs);
+}
+
+function pintarResumenCal(movs, porDia) {
+  const total = movs.reduce((s, x) => s + x.monto, 0);
+  const dias = Object.keys(porDia).map(Number);
+  const tit = cal.filtro ? emojiDe(cal.filtro) + ' ' + esc(cal.filtro) : '✨ Día a día';
+  if (!movs.length) {
+    $('calRes').innerHTML = `<div class="cal-res-tit">${tit}</div><div class="muted">${cal.meses[cal.mes] ? 'Nada en este mes 🙌' : 'Leyendo la planilla…'}</div>`;
+    return;
+  }
+  const masCaro = dias.sort((x, y) => porDia[y].total - porDia[x].total)[0];
+  const [a, m] = cal.mes.split('-').map(Number);
+  const fechaCara = DIAS[new Date(a, m - 1, masCaro).getDay()] + ' ' + masCaro;
+  // En el mes en curso se cuentan los días que van, no el mes entero.
+  const hoy = new Date();
+  const corridos = hoy.getFullYear() === a && hoy.getMonth() + 1 === m ? hoy.getDate() : new Date(a, m, 0).getDate();
+  const cada = corridos / dias.length;
+  const cadaCuanto = dias.length > 1 ? (cada < 1.5 ? ' · casi todos los días' : ' · más o menos cada ' + Math.round(cada) + ' días') : '';
+  $('calRes').innerHTML = `<div class="cal-res-tit">${tit}</div>
+    <div class="cal-res-grid">
+      <div><span>Total</span><b>${pesos(total)}</b></div>
+      <div><span>${cal.filtro ? 'Veces' : 'Compras'}</span><b>${movs.length}</b></div>
+      <div><span>Días</span><b>${dias.length}</b></div>
+    </div>
+    <div class="cal-res-pie">📍 El día de más gasto fue el <b>${fechaCara}</b> (${pesos(porDia[masCaro].total)})${cal.filtro ? cadaCuanto : ''}</div>`;
+}
+
+function pintarSemanaCal(movs) {
+  const nombres = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const suma = [0, 0, 0, 0, 0, 0, 0];
+  movs.forEach((x) => { const [a, m, d] = x.fecha.split('-').map(Number); suma[(new Date(a, m - 1, d).getDay() + 6) % 7] += x.monto; });
+  const max = Math.max(1, ...suma);
+  const top = suma.indexOf(Math.max(...suma));
+  $('calSemana').innerHTML = movs.length ? nombres.map((n, i) => `<div class="sem-fila${i === top ? ' top' : ''}">
+      <span>${n}</span><i><b style="width:${(suma[i] / max * 100).toFixed(1)}%"></b></i><span class="monto">${suma[i] ? abreviado(suma[i]) : '—'}</span></div>`).join('')
+    : '<div class="muted">Sin gastos para comparar.</div>';
+}
+
+function abrirDiaCal(dia) {
+  const fecha = cal.mes + '-' + String(dia).padStart(2, '0');
+  const movs = movsDelCal().filter((x) => x.fecha === fecha);
+  const total = movs.reduce((s, x) => s + x.monto, 0);
+  $('hTit').textContent = '📅 ' + diaLegible(fecha);
+  $('hDef').textContent = cal.filtro ? 'Solo ' + cal.filtro : 'Día a día (sin fijos ni deudas)';
+  $('hRes').innerHTML = `<div><span>Gastado</span><b>${pesos(total)}</b></div><div><span>Compras</span><b>${movs.length}</b></div><div><span>Quién</span><b>${cal.quien === 'todos' ? 'Los dos' : esc(cal.quien)}</b></div>`;
+  $('hLista').innerHTML = listaMovs(movs);
+  $('velo').hidden = $('hoja').hidden = false;
+  requestAnimationFrame(() => { $('velo').classList.add('on'); $('hoja').classList.add('on'); });
+}
+
+function conectarCalendario() {
+  on('calAntes', 'click', () => { cal.mes = moverMes(cal.mes, -1); pintarCalendario(); if (!cal.meses[cal.mes]) cargarMesCal(cal.mes); });
+  on('calDespues', 'click', () => { if (cal.mes >= mesActual()) return; cal.mes = moverMes(cal.mes, 1); pintarCalendario(); if (!cal.meses[cal.mes]) cargarMesCal(cal.mes); });
+  on('calFiltros', 'click', (e) => {
+    const b = e.target.closest('[data-cal]'); if (!b) return;
+    toque(); cal.filtro = b.dataset.cal; pintarCalendario();
+  });
+  on('calQuien', 'click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    cal.quien = b.dataset.v;
+    $('calQuien').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    pintarCalendario();
+  });
+  on('calGrid', 'click', (e) => { const b = e.target.closest('[data-dia]'); if (b) abrirDiaCal(Number(b.dataset.dia)); });
+}
+
 // --- Avisos en el teléfono (Web Push, 12-11) -------------------------------
 // En iPhone solo existe con la app agregada a la pantalla de inicio (iOS 16.4+).
 
@@ -643,7 +806,8 @@ function irA(vista) {
 
 function cambiarVista(vista) {
   estado.vista = vista;
-  ['vMes', 'vClasificar', 'vAnotar'].forEach((v) => { $(v).hidden = v !== vista; });
+  ['vMes', 'vDias', 'vClasificar', 'vAnotar'].forEach((v) => { $(v).hidden = v !== vista; });
+  if (vista === 'vDias') abrirCalendario();
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === vista));
   pintarTitulo();
   window.scrollTo(0, 0);
@@ -673,6 +837,7 @@ function conectar() {
   }));
   on('velo', 'click', cerrarHoja);
   on('mPush', 'click', accionPush);
+  conectarCalendario();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.tipo === 'gasto') irAGasto(e.data.id);
@@ -741,7 +906,7 @@ function iniciar() {
   estado.cfg = cargarConfig();
 
   if (!estado.cfg) {
-    ['vMes', 'vClasificar', 'vAnotar'].forEach((v) => { $(v).hidden = true; });
+    ['vMes', 'vDias', 'vClasificar', 'vAnotar'].forEach((v) => { $(v).hidden = true; });
     $('vSetup').hidden = false;
     document.querySelector('.tabs').hidden = true;
     $('btnRefrescar').hidden = true;

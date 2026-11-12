@@ -382,3 +382,44 @@ main { padding: 4px 16px 16px; max-width: 560px; margin: 0 auto; }
 }
 .top-sub { text-transform: none; letter-spacing: 0; font-size: 14px; }
 #mAvisoPend.al-dia { background: color-mix(in srgb, var(--menta) 14%, var(--card)); color: var(--texto); cursor: default; }
+
+/* --- v15: calendario (12-11) --- */
+.tabs button span { white-space: nowrap; }
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cal-nav .icon-btn { font-size: 24px; color: var(--texto); }
+.cal-nav .icon-btn:disabled { opacity: 0.3; }
+.cal-mes { font-size: 20px; font-weight: 800; text-transform: capitalize; }
+.cal-filtros { display: flex; gap: 8px; overflow-x: auto; padding: 2px 16px 12px; margin: 0 -16px; scrollbar-width: none; }
+.cal-filtros::-webkit-scrollbar { display: none; }
+.cal-filtros .chip { flex-shrink: 0; }
+.cal-filtros .chip.on { background: var(--oro); color: #3A2A05; border-color: var(--oro); }
+.cal { padding: 12px 10px; }
+.cal-sem, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-sem span { text-align: center; font-size: 11px; font-weight: 700; color: var(--suave); padding-bottom: 6px; }
+.cal-grid.cargando-cal { opacity: 0.45; transition: opacity 0.2s ease; }
+.cal-dia { position: relative; aspect-ratio: 1 / 1.15; border-radius: 10px; background: var(--bg2);
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 4px 1px 5px;
+  min-width: 0; overflow: hidden; }
+.cal-dia.vacio { background: none; }
+.cal-dia.futuro { opacity: 0.35; }
+.cal-dia.con { background: color-mix(in srgb, var(--oro) calc(var(--nivel) * 70%), var(--bg2)); }
+.cal-dia.con:active { transform: scale(0.92); }
+.cal-dia.hoy { box-shadow: inset 0 0 0 2px var(--menta); }
+.cal-num { font-size: 11px; font-weight: 700; color: var(--suave); line-height: 1; }
+.cal-dia.con .cal-num { color: var(--texto); }
+.cal-emoji { font-size: 15px; line-height: 1; }
+.cal-monto { font-size: 9.5px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.cal-ley { color: var(--suave); font-size: 12px; margin: 10px 2px 0; }
+.cal-res { margin-top: 12px; }
+.cal-res-tit { font-weight: 800; font-size: 17px; margin-bottom: 8px; }
+.cal-res-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cal-res-grid span { display: block; font-size: 12px; color: var(--suave); }
+.cal-res-grid b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.cal-res-pie { font-size: 13px; color: var(--suave); margin-top: 10px; }
+.cal-res-pie b { color: var(--texto); }
+.sem-fila { display: grid; grid-template-columns: 36px 1fr 52px; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; }
+.sem-fila i { height: 10px; border-radius: 5px; background: var(--bg2); overflow: hidden; }
+.sem-fila i b { display: block; height: 100%; border-radius: 5px; background: var(--menta); transition: width 0.4s var(--ease-out); }
+.sem-fila.top i b { background: var(--oro); }
+.sem-fila.top span:first-child { font-weight: 800; }
+.sem-fila .monto { text-align: right; font-variant-numeric: tabular-nums; }
