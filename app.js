@@ -148,6 +148,8 @@ function pintar() {
   pintarAnotarCats(d);
   pintarGuia(d);
   if (d.delMes) cal.meses[mesISO(d.mes)] = d.delMes;
+  pintarBadgeCasa();
+  if (estado.vista === 'vCasa') pintarCasa();
   if (estado.vista === 'vDias' && cal.mes) pintarCalendario();
   const mios = pendientesDe(d, 'mios').length;
   $('badge').hidden = !mios;
@@ -189,6 +191,7 @@ function pintarTitulo() {
   const titulos = {
     vMes: nombre ? `Hola ${esc(nombre)} <span class="saluda">👋🏼</span>` : 'Gastos',
     vDias: '📅 Calendario',
+    vCasa: '🏠 Casa',
     vClasificar: '🏷️ Clasificar',
     vAnotar: '✍️ Anotar gasto'
   };
@@ -555,7 +558,7 @@ function pintarLectura(l) {
 // «Todo» mira el día a día: sin Gasto fijo ni Deudas (el arriendo taparía todo).
 
 const FUERA_DEL_DIA_A_DIA = ['gasto fijo', 'deudas'];
-const cal = { mes: '', filtro: '', quien: 'todos', meses: {} };  // meses: 'aaaa-mm' → movs
+const cal = { mes: '', filtro: '', quien: 'todos', meses: {}, modo: 'gastos' };  // meses: 'aaaa-mm' → movs
 
 function mesActual() { return mesISO(estado.datos?.mes); }
 
@@ -606,7 +609,12 @@ function pintarCalendario() {
   const d = estado.datos;
   const [a, m] = cal.mes.split('-').map(Number);
   $('calMes').textContent = MESES[m - 1] + ' ' + a;
-  $('calDespues').disabled = cal.mes >= mesActual();
+  const familia = cal.modo === 'familia';
+  document.querySelectorAll('#vDias .solo-gastos').forEach((x) => { x.hidden = familia; });
+  document.querySelectorAll('#vDias .solo-familia').forEach((x) => { x.hidden = !familia; });
+  // En Familia se puede ir hacia adelante (eventos futuros); en Gastos no hay nada después de hoy.
+  $('calDespues').disabled = !familia && cal.mes >= mesActual();
+  if (familia) return pintarCalendarioFamilia(a, m);
 
   // Filtros: «Todo» + las categorías (sin las fijas, que no son de día a día... salvo que las pidan).
   const cats = (d?.categorias || []).filter((c) => norm(c) !== 'sin recuerdo');
@@ -696,7 +704,19 @@ function abrirDiaCal(dia) {
 
 function conectarCalendario() {
   on('calAntes', 'click', () => { cal.mes = moverMes(cal.mes, -1); pintarCalendario(); if (!cal.meses[cal.mes]) cargarMesCal(cal.mes); });
-  on('calDespues', 'click', () => { if (cal.mes >= mesActual()) return; cal.mes = moverMes(cal.mes, 1); pintarCalendario(); if (!cal.meses[cal.mes]) cargarMesCal(cal.mes); });
+  on('calDespues', 'click', () => {
+    if (cal.modo !== 'familia' && cal.mes >= mesActual()) return;
+    cal.mes = moverMes(cal.mes, 1); pintarCalendario();
+    if (cal.modo !== 'familia' && !cal.meses[cal.mes]) cargarMesCal(cal.mes);
+  });
+  on('calModo', 'click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    cal.modo = b.dataset.v;
+    $('calModo').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    if (cal.modo === 'gastos' && cal.mes > mesActual()) cal.mes = mesActual();
+    pintarCalendario();
+    if (cal.modo === 'gastos' && !cal.meses[cal.mes]) cargarMesCal(cal.mes);
+  });
   on('calFiltros', 'click', (e) => {
     const b = e.target.closest('[data-cal]'); if (!b) return;
     toque(); cal.filtro = b.dataset.cal; pintarCalendario();
@@ -707,7 +727,235 @@ function conectarCalendario() {
     $('calQuien').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
     pintarCalendario();
   });
-  on('calGrid', 'click', (e) => { const b = e.target.closest('[data-dia]'); if (b) abrirDiaCal(Number(b.dataset.dia)); });
+  on('calGrid', 'click', (e) => {
+    const b = e.target.closest('[data-dia]'); if (!b) return;
+    if (cal.modo === 'familia') abrirDiaFamilia(Number(b.dataset.dia)); else abrirDiaCal(Number(b.dataset.dia));
+  });
+  on('hLista', 'click', (e) => {
+    const b = e.target.closest('[data-nuevo-evento]'); if (!b) return;
+    cerrarHoja(); casa.tab = 'evento'; casa.fecha = b.dataset.nuevoEvento; irA('vCasa');
+    setTimeout(() => $('cnTexto') && $('cnTexto').focus(), 350);
+  });
+}
+
+// --- Casa: súper, pendientes y eventos compartidos (12-11) -------------------
+// Viven en la hoja «Familia». Cada cosa tiene su id inventado en el teléfono (un reintento no
+// duplica). Se cambia al tiro en pantalla y después se guarda; si Google falla, se deshace.
+
+const VISTA_DE = { clasificar: 'vClasificar', casa: 'vCasa', mes: 'vMes' };
+const EMOJIS_EVENTO = ['📌', '🎂', '🩺', '👶', '🏫', '🎉', '✈️', '💼', '🍽️', '💊'];
+const casa = { tab: 'lista', para: 'Los dos', emoji: '📌', fecha: '', hora: '', borrando: '' };
+
+function famItems(tipo) { return ((estado.datos && estado.datos.familia) || []).filter((x) => x.tipo === tipo); }
+
+function hoyLocal(delta) {
+  const f = new Date(Date.now() + (delta || 0) * 864e5);
+  return f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0') + '-' + String(f.getDate()).padStart(2, '0');
+}
+
+function fechaAmable(iso) {
+  if (!iso) return '';
+  if (iso === hoyLocal()) return 'hoy';
+  if (iso === hoyLocal(1)) return 'mañana';
+  if (iso === hoyLocal(-1)) return 'ayer';
+  return diaLegible(iso);
+}
+
+function pintarBadgeCasa() {
+  const b = $('badgeCasa'); if (!b) return;
+  const quien = estado.datos && estado.datos.persona;
+  // Lo que es para hoy (o atrasado) y te toca a ti o a los dos.
+  const n = ((estado.datos && estado.datos.familia) || []).filter((x) => x.tipo !== 'lista' && !x.hecho && x.fecha &&
+    x.fecha <= hoyLocal() && (x.tipo === 'pendiente' || x.fecha === hoyLocal()) && (x.para === 'Los dos' || x.para === quien)).length;
+  b.hidden = !n; b.textContent = n;
+}
+
+function chipsPara() {
+  return ['Los dos', 'Tomás', 'Marta'].map((p) => `<button class="chip${casa.para === p ? ' on' : ''}" data-para="${p}">${p === 'Los dos' ? '👫 Los dos' : p}</button>`).join('');
+}
+
+function pintarCasa() {
+  if (!estado.datos) return;
+  $('casaSeg').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.v === casa.tab));
+  const t = casa.tab;
+  let form;
+  if (t === 'lista') {
+    form = `<div class="cn-fila"><input id="cnTexto" type="text" placeholder="Agregar a la lista (leche, pañales…)" autocomplete="off" enterkeyhint="done">
+      <button class="cn-mas" id="cnGuardar" aria-label="Agregar">＋</button></div>`;
+  } else {
+    if (t === 'evento' && !casa.fecha) casa.fecha = hoyLocal();
+    form = `<input id="cnTexto" type="text" placeholder="${t === 'evento' ? 'Qué es (cumple de la Cony, control de Lucas…)' : 'Qué hay que hacer (pagar el jardín, llamar al banco…)'}" autocomplete="off" enterkeyhint="done">
+      ${t === 'evento' ? `<div class="cn-emojis">${EMOJIS_EVENTO.map((e) => `<button class="${casa.emoji === e ? 'on' : ''}" data-emoji="${e}">${e}</button>`).join('')}</div>` : ''}
+      <div class="cn-cuando">
+        <label>📅 <input id="cnFecha" type="date" value="${casa.fecha}"></label>
+        ${t === 'evento' ? `<label>🕐 <input id="cnHora" type="time" value="${casa.hora}"></label>` : '<span class="muted">fecha opcional</span>'}
+      </div>
+      <div class="chips cn-para">${chipsPara()}</div>
+      <button class="btn" id="cnGuardar">${t === 'evento' ? 'Agendar' : 'Agregar pendiente'}</button>`;
+  }
+  // No repintar el formulario si se está escribiendo (el repintado viene del refresco automático).
+  const activo = document.activeElement && $('casaNuevo').contains(document.activeElement);
+  if (!activo || $('casaNuevo').dataset.tab !== t) { $('casaNuevo').innerHTML = form; $('casaNuevo').dataset.tab = t; }
+  $('casaLista').innerHTML = t === 'lista' ? htmlLista() : t === 'pendiente' ? htmlPendientes() : htmlEventos();
+  pintarBadgeCasa();
+}
+
+function puntoDe(p) { return `<i class="punto" style="background:var(--${p === 'Marta' ? 'marta' : 'tomas'})"></i>`; }
+
+function botonBorrar(id) {
+  return `<button class="fam-borrar${casa.borrando === id ? ' seguro' : ''}" data-borrar="${esc(id)}" aria-label="Borrar">${casa.borrando === id ? 'Borrar' : '✕'}</button>`;
+}
+
+function htmlLista() {
+  const items = famItems('lista').sort((a, b) => (a.hecho - b.hecho) || (a.creado || '').localeCompare(b.creado || ''));
+  if (!items.length) return `<div class="vacio">🛒<b>La lista está vacía</b>Lo que agreguen aparece acá para los dos.</div>`;
+  const comprados = items.filter((x) => x.hecho).length;
+  return `<div class="card fam-card">${items.map((x) => `<div class="fam-fila${x.hecho ? ' hecho' : ''}">
+      <button class="fam-check" data-hecho="${esc(x.id)}" aria-label="Marcar">${x.hecho ? '✓' : ''}</button>
+      <div class="fam-txt">${esc(x.texto)}<small>${puntoDe(x.creadoPor)}${esc(x.creadoPor)}</small></div>${botonBorrar(x.id)}</div>`).join('')}</div>
+    ${comprados ? `<button class="fam-limpiar" id="famLimpiar">🧹 Sacar los ${comprados} comprados</button>` : ''}`;
+}
+
+function htmlPendientes() {
+  const hoy = hoyLocal();
+  const items = famItems('pendiente').sort((a, b) => (a.hecho - b.hecho) || ((a.fecha || '9999') .localeCompare(b.fecha || '9999')) || (a.creado || '').localeCompare(b.creado || ''));
+  if (!items.length) return `<div class="vacio">✅<b>Sin pendientes</b>Anoten acá lo que hay que hacer en la casa.</div>`;
+  return `<div class="card fam-card">${items.map((x) => {
+    const atrasado = !x.hecho && x.fecha && x.fecha < hoy;
+    return `<div class="fam-fila${x.hecho ? ' hecho' : ''}">
+      <button class="fam-check" data-hecho="${esc(x.id)}" aria-label="Marcar">${x.hecho ? '✓' : ''}</button>
+      <div class="fam-txt">${esc(x.texto)}<small>${x.para === 'Los dos' ? '👫 Los dos' : puntoDe(x.para) + esc(x.para)}${x.fecha ? ` · <span class="${atrasado ? 'atrasado' : ''}">${atrasado ? '⚠️ ' : '📅 '}${fechaAmable(x.fecha)}</span>` : ''}</small></div>
+      ${botonBorrar(x.id)}</div>`;
+  }).join('')}</div>`;
+}
+
+function htmlEventos() {
+  const hoy = hoyLocal();
+  const items = famItems('evento').filter((x) => x.fecha >= hoy).sort((a, b) => (a.fecha + (a.hora || '99')).localeCompare(b.fecha + (b.hora || '99')));
+  if (!items.length) return `<div class="vacio">📌<b>No hay nada agendado</b>Cumpleaños, controles de Lucas, reuniones del jardín…</div>`;
+  let html = '', previo = '';
+  items.forEach((x) => {
+    if (x.fecha !== previo) { html += `<div class="dia">${fechaAmable(x.fecha) === 'hoy' ? '☀️ Hoy' : fechaAmable(x.fecha) === 'mañana' ? '🌙 Mañana' : diaLegible(x.fecha)}</div>`; previo = x.fecha; }
+    html += `<div class="fam-fila evento"><span class="fam-emoji">${esc(x.emoji || '📌')}</span>
+      <div class="fam-txt">${esc(x.texto)}<small>${x.hora ? '🕐 ' + esc(x.hora) + ' · ' : ''}${x.para === 'Los dos' ? '👫 Los dos' : puntoDe(x.para) + esc(x.para)}</small></div>${botonBorrar(x.id)}</div>`;
+  });
+  return `<div class="card fam-card lista">${html}</div>`;
+}
+
+/** Cambia en pantalla, guarda, y si Google falla deshace. */
+async function famCambiar(accion, params, aplicar, deshacer, okTxt) {
+  aplicar(); guardarLS(LS_DATOS, estado.datos); pintarCasa(); toque();
+  try {
+    const r = await llamar(accion, params);
+    if (!r.ok) throw new Error(r.error || 'No se pudo guardar');
+    if (okTxt) aviso(okTxt);
+  } catch (e) {
+    deshacer(); guardarLS(LS_DATOS, estado.datos); pintarCasa();
+    aviso(e.message + ' — no se guardó.', true);
+  }
+}
+
+function famGuardarNuevo() {
+  const texto = ($('cnTexto').value || '').trim();
+  if (!texto) { $('cnTexto').focus(); return; }
+  const t = casa.tab;
+  const fecha = t === 'lista' ? '' : ($('cnFecha') ? $('cnFecha').value : '');
+  if (t === 'evento' && !fecha) { aviso('Falta la fecha', true); return; }
+  const item = { id: idNuevo(), tipo: t, texto, fecha, hora: t === 'evento' && $('cnHora') ? $('cnHora').value : '',
+    emoji: t === 'evento' ? casa.emoji : '', para: t === 'lista' ? 'Los dos' : casa.para, hecho: false,
+    creadoPor: estado.datos.persona, creado: new Date().toISOString().slice(0, 16).replace('T', ' ') };
+  estado.datos.familia = estado.datos.familia || [];
+  $('cnTexto').value = '';
+  if (t !== 'lista') { casa.hora = ''; casa.emoji = '📌'; casa.fecha = ''; $('casaNuevo').dataset.tab = ''; }
+  famCambiar('famGuardar', { id: item.id, tipo: t, texto, fecha: item.fecha, hora: item.hora, emoji: item.emoji, para: item.para },
+    () => estado.datos.familia.push(item),
+    () => { estado.datos.familia = estado.datos.familia.filter((x) => x.id !== item.id); },
+    t === 'lista' ? '' : (t === 'evento' ? '📌 Agendado, le avisé a ' : '✅ Anotado, le avisé a ') + (estado.datos.persona === 'Marta' ? 'Tomás' : 'Marta'));
+  if (t === 'lista') setTimeout(() => $('cnTexto') && $('cnTexto').focus(), 50);
+}
+
+function conectarCasa() {
+  on('casaSeg', 'click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    casa.tab = b.dataset.v; casa.borrando = ''; $('casaNuevo').dataset.tab = ''; pintarCasa();
+  });
+  on('casaNuevo', 'click', (e) => {
+    if (e.target.closest('#cnGuardar')) return famGuardarNuevo();
+    const em = e.target.closest('[data-emoji]');
+    if (em) { casa.emoji = em.dataset.emoji; $('casaNuevo').querySelectorAll('[data-emoji]').forEach((x) => x.classList.toggle('on', x === em)); toque(); return; }
+    const pa = e.target.closest('[data-para]');
+    if (pa) { casa.para = pa.dataset.para; $('casaNuevo').querySelectorAll('[data-para]').forEach((x) => x.classList.toggle('on', x === pa)); toque(); }
+  });
+  on('casaNuevo', 'change', (e) => {
+    if (e.target.id === 'cnFecha') casa.fecha = e.target.value;
+    if (e.target.id === 'cnHora') casa.hora = e.target.value;
+  });
+  on('casaNuevo', 'keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'cnTexto') { e.preventDefault(); famGuardarNuevo(); } });
+  on('casaLista', 'click', (e) => {
+    const h = e.target.closest('[data-hecho]');
+    if (h) {
+      const x = estado.datos.familia.find((y) => y.id === h.dataset.hecho); if (!x) return;
+      const antes = x.hecho;
+      return famCambiar('famHecho', { id: x.id, hecho: antes ? '0' : '1' }, () => { x.hecho = !antes; x.actualizado = new Date().toISOString().slice(0, 16).replace('T', ' '); }, () => { x.hecho = antes; });
+    }
+    const bo = e.target.closest('[data-borrar]');
+    if (bo) {
+      const id = bo.dataset.borrar;
+      if (casa.borrando !== id) { casa.borrando = id; pintarCasa(); setTimeout(() => { if (casa.borrando === id) { casa.borrando = ''; pintarCasa(); } }, 3000); return; }
+      casa.borrando = '';
+      const x = estado.datos.familia.find((y) => y.id === id); if (!x) return;
+      return famCambiar('famBorrar', { id }, () => { estado.datos.familia = estado.datos.familia.filter((y) => y.id !== id); }, () => estado.datos.familia.push(x));
+    }
+    if (e.target.closest('#famLimpiar')) {
+      const comprados = famItems('lista').filter((x) => x.hecho);
+      estado.datos.familia = estado.datos.familia.filter((x) => !(x.tipo === 'lista' && x.hecho));
+      guardarLS(LS_DATOS, estado.datos); pintarCasa(); toque();
+      Promise.all(comprados.map((x) => llamar('famBorrar', { id: x.id }).catch(() => null)))
+        .then((rs) => { if (rs.some((r) => !r || !r.ok)) { aviso('Algunos no se borraron, actualiza', true); refrescar(); } });
+    }
+  });
+}
+
+// Calendario en modo Familia: eventos y pendientes con fecha, por día.
+function famDelDia(iso) {
+  return ((estado.datos && estado.datos.familia) || []).filter((x) => x.tipo !== 'lista' && x.fecha === iso)
+    .sort((a, b) => (a.hora || '99').localeCompare(b.hora || '99'));
+}
+
+function pintarCalendarioFamilia(a, m) {
+  const hoy = new Date();
+  const esEsteMes = hoy.getFullYear() === a && hoy.getMonth() + 1 === m;
+  const diasMes = new Date(a, m, 0).getDate();
+  const corrimiento = (new Date(a, m - 1, 1).getDay() + 6) % 7;
+  let html = '<span class="cal-dia vacio"></span>'.repeat(corrimiento);
+  for (let dia = 1; dia <= diasMes; dia++) {
+    const iso = cal.mes + '-' + String(dia).padStart(2, '0');
+    const cosas = famDelDia(iso);
+    const emojis = cosas.slice(0, 2).map((x) => x.emoji || (x.tipo === 'evento' ? '📌' : '✅')).join('');
+    html += `<button class="cal-dia fam${cosas.length ? ' con-fam' : ''}${esEsteMes && dia === hoy.getDate() ? ' hoy' : ''}" data-dia="${dia}">
+      <span class="cal-num">${dia}</span>${cosas.length ? `<span class="cal-emoji">${emojis}</span>${cosas.length > 2 ? `<span class="cal-monto">+${cosas.length - 2}</span>` : '<span></span>'}` : ''}</button>`;
+  }
+  $('calGrid').innerHTML = html;
+  $('calLey').textContent = 'Eventos y pendientes con fecha. Toca un día para ver qué hay o agendar algo.';
+  const desde = hoyLocal();
+  const prox = ((estado.datos && estado.datos.familia) || []).filter((x) => x.tipo === 'evento' && x.fecha >= desde)
+    .sort((x, y) => (x.fecha + (x.hora || '99')).localeCompare(y.fecha + (y.hora || '99'))).slice(0, 5);
+  $('calProximos').innerHTML = `<h3 class="sec">📌 Lo que viene</h3><div class="card fam-card">${prox.length ? prox.map((x) =>
+    `<div class="fam-fila evento"><span class="fam-emoji">${esc(x.emoji || '📌')}</span><div class="fam-txt">${esc(x.texto)}<small>${fechaAmable(x.fecha)}${x.hora ? ' · ' + esc(x.hora) : ''}</small></div></div>`).join('')
+    : '<div class="muted">Nada agendado todavía. Toca un día para agregar algo.</div>'}</div>`;
+}
+
+function abrirDiaFamilia(dia) {
+  const iso = cal.mes + '-' + String(dia).padStart(2, '0');
+  const cosas = famDelDia(iso);
+  $('hTit').textContent = '📌 ' + diaLegible(iso);
+  $('hDef').textContent = cosas.length ? (cosas.length === 1 ? '1 cosa este día' : cosas.length + ' cosas este día') : 'Nada agendado';
+  $('hRes').innerHTML = '';
+  $('hLista').innerHTML = cosas.map((x) => `<div class="fam-fila evento${x.hecho ? ' hecho' : ''}"><span class="fam-emoji">${esc(x.emoji || (x.tipo === 'evento' ? '📌' : '✅'))}</span>
+      <div class="fam-txt">${esc(x.texto)}<small>${x.hora ? '🕐 ' + esc(x.hora) + ' · ' : ''}${x.tipo === 'pendiente' ? 'pendiente · ' : ''}${x.para === 'Los dos' ? '👫 Los dos' : esc(x.para)}</small></div></div>`).join('') +
+    `<button class="btn" data-nuevo-evento="${iso}">＋ Agendar algo este día</button>`;
+  $('velo').hidden = $('hoja').hidden = false;
+  requestAnimationFrame(() => { $('velo').classList.add('on'); $('hoja').classList.add('on'); });
 }
 
 // --- Avisos en el teléfono (Web Push, 12-11) -------------------------------
@@ -834,8 +1082,9 @@ function irA(vista) {
 
 function cambiarVista(vista) {
   estado.vista = vista;
-  ['vMes', 'vDias', 'vClasificar', 'vAnotar'].forEach((v) => { $(v).hidden = v !== vista; });
+  ['vMes', 'vDias', 'vCasa', 'vClasificar', 'vAnotar'].forEach((v) => { $(v).hidden = v !== vista; });
   if (vista === 'vDias') abrirCalendario();
+  if (vista === 'vCasa') pintarCasa();
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === vista));
   pintarTitulo();
   window.scrollTo(0, 0);
@@ -870,10 +1119,11 @@ function conectar() {
     pintarLectura(estado.datos && estado.datos.lectura);
   });
   conectarCalendario();
+  conectarCasa();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.tipo === 'gasto') irAGasto(e.data.id);
-      if (e.data && e.data.tipo === 'ir') irA(e.data.ir === 'clasificar' ? 'vClasificar' : 'vMes');
+      if (e.data && e.data.tipo === 'ir') irA(VISTA_DE[e.data.ir] || 'vMes');
     });
   }
   arrastrarHoja();
@@ -939,7 +1189,7 @@ function iniciar() {
   estado.cfg = cargarConfig();
 
   if (!estado.cfg) {
-    ['vMes', 'vDias', 'vClasificar', 'vAnotar'].forEach((v) => { $(v).hidden = true; });
+    ['vMes', 'vDias', 'vCasa', 'vClasificar', 'vAnotar'].forEach((v) => { $(v).hidden = true; });
     $('vSetup').hidden = false;
     document.querySelector('.tabs').hidden = true;
     $('btnRefrescar').hidden = true;
@@ -959,7 +1209,7 @@ function iniciar() {
   if (estado.datos) pintar();
   else $('mRecientes').innerHTML = '<div class="cargando">Leyendo la planilla…</div>';
   if (pedido) irAGasto(pedido); else refrescar();
-  if (!pedido && ver === 'clasificar') irA('vClasificar');
+  if (!pedido && VISTA_DE[ver]) irA(VISTA_DE[ver]);
   pintarPush();
   renovarSuscripcion();
 

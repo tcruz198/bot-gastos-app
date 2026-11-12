@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="app.css?v=17">
+  <link rel="stylesheet" href="app.css?v=18">
 </head>
 <body>
   <header class="top">
@@ -72,25 +72,40 @@
     </section>
 
     <section class="view" id="vDias" hidden>
+      <div class="seg" id="calModo">
+        <button data-v="gastos" class="on">💸 Gastos</button>
+        <button data-v="familia">📌 Familia</button>
+      </div>
       <div class="cal-nav">
         <button class="icon-btn" id="calAntes" aria-label="Mes anterior">‹</button>
         <div class="cal-mes" id="calMes">…</div>
         <button class="icon-btn" id="calDespues" aria-label="Mes siguiente">›</button>
       </div>
-      <div class="seg" id="calQuien">
+      <div class="seg solo-gastos" id="calQuien">
         <button data-v="todos" class="on">Los dos</button>
         <button data-v="Tomás">Tomás</button>
         <button data-v="Marta">Marta</button>
       </div>
-      <div class="cal-filtros" id="calFiltros"></div>
+      <div class="cal-filtros solo-gastos" id="calFiltros"></div>
       <div class="card cal">
         <div class="cal-sem"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
         <div class="cal-grid" id="calGrid"></div>
         <div class="cal-ley" id="calLey"></div>
       </div>
-      <div class="card cal-res" id="calRes"></div>
-      <h3 class="sec">📆 Por día de la semana</h3>
-      <div class="card cal-semana" id="calSemana"></div>
+      <div class="card cal-res solo-gastos" id="calRes"></div>
+      <h3 class="sec solo-gastos">📆 Por día de la semana</h3>
+      <div class="card cal-semana solo-gastos" id="calSemana"></div>
+      <div class="solo-familia" id="calProximos"></div>
+    </section>
+
+    <section class="view" id="vCasa" hidden>
+      <div class="seg" id="casaSeg">
+        <button data-v="lista" class="on">🛒 Súper</button>
+        <button data-v="pendiente">✅ Pendientes</button>
+        <button data-v="evento">📌 Eventos</button>
+      </div>
+      <div class="card casa-nuevo" id="casaNuevo"></div>
+      <div id="casaLista"></div>
     </section>
 
     <section class="view" id="vClasificar" hidden>
@@ -137,6 +152,11 @@
       <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M3 10h18M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="8" cy="15" r="1.4" fill="currentColor"/><circle cx="12" cy="15" r="1.4" fill="currentColor"/></svg>
       <span>Días</span>
     </button>
+    <button data-tab="vCasa">
+      <svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
+      <span>Casa</span>
+      <i class="badge" id="badgeCasa" hidden></i>
+    </button>
     <button data-tab="vClasificar">
       <svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8L3 12z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="7.5" cy="8.5" r="1.6" fill="currentColor"/></svg>
       <span>Clasificar</span>
@@ -159,6 +179,6 @@
 
   <div class="toast" id="toast" hidden></div>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
