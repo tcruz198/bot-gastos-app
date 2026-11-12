@@ -264,6 +264,7 @@ function pintarMes(d) {
     : `✨ <span>Tienes todo clasificado, bien ahí 🙌</span>`;
 
   $('mAvance').textContent = '· va el ' + d.avanceMes + '% del mes ⏳';
+  pintarLectura(d.lectura);
   const pres = d.presupuesto || [];
 
   // Meta de deuda: acá llenar la barra es lo bueno.
@@ -535,7 +536,21 @@ async function guardarNuevo() {
   }
 }
 
-// --- Calendario (12-11) ----------------------------------------------------
+// --- Lectura del mes (la escribe Claude una vez al mes, 12-11) ---------------
+
+function pintarLectura(l) {
+  const caja = $('mLectura'); if (!caja) return;
+  if (!l || !l.texto) { caja.hidden = true; return; }
+  const nombre = MESES[Number(String(l.mes).slice(5, 7)) - 1] || '';
+  const tit = (l.tipo === 'avance' ? '🧠 Cómo va ' : '🧠 Lectura de ') + nombre;
+  const abierta = caja.dataset.abierta === '1';
+  const parrafos = esc(l.texto).split(/\n+/).filter((x) => x.trim());
+  caja.hidden = false;
+  caja.innerHTML = `<button class="lectura-top" data-lectura>
+      <span><b>${tit}</b><small>Escrita por Claude con los gastos del mes</small></span><span class="lectura-flecha">${abierta ? '▴' : '▾'}</span></button>
+    <div class="lectura-txt${abierta ? '' : ' corta'}">${parrafos.map((x) => `<p>${x}</p>`).join('')}</div>`;
+}
+
 // Qué día se gastó en qué: el mes en grilla, con filtro por categoría y persona.
 // «Todo» mira el día a día: sin Gasto fijo ni Deudas (el arriendo taparía todo).
 
@@ -850,10 +865,15 @@ function conectar() {
   }));
   on('velo', 'click', cerrarHoja);
   on('mPush', 'click', accionPush);
+  on('mLectura', 'click', () => {
+    const c = $('mLectura'); c.dataset.abierta = c.dataset.abierta === '1' ? '' : '1';
+    pintarLectura(estado.datos && estado.datos.lectura);
+  });
   conectarCalendario();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.tipo === 'gasto') irAGasto(e.data.id);
+      if (e.data && e.data.tipo === 'ir') irA(e.data.ir === 'clasificar' ? 'vClasificar' : 'vMes');
     });
   }
   arrastrarHoja();
@@ -931,12 +951,15 @@ function iniciar() {
   estado.datos = normalizar(leerLS(LS_DATOS));
   document.documentElement.classList.add('entrando');
   setTimeout(() => document.documentElement.classList.remove('entrando'), 900);
-  const pedido = new URLSearchParams(location.search).get('gasto');
-  if (pedido) history.replaceState(null, '', location.pathname);
+  const qs = new URLSearchParams(location.search);
+  const pedido = qs.get('gasto');
+  const ver = qs.get('ver');
+  if (pedido || ver) history.replaceState(null, '', location.pathname);
   irA('vMes');
   if (estado.datos) pintar();
   else $('mRecientes').innerHTML = '<div class="cargando">Leyendo la planilla…</div>';
   if (pedido) irAGasto(pedido); else refrescar();
+  if (!pedido && ver === 'clasificar') irA('vClasificar');
   pintarPush();
   renovarSuscripcion();
 

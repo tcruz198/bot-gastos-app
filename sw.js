@@ -1,7 +1,7 @@
 // Guarda la app (no los datos) para que abra al instante y sin señal.
 // Subir VERSION en cada cambio de la app, o los teléfonos siguen con la vieja.
-const VERSION = 'gastos-v16';
-const ARCHIVOS = ['./', 'index.html', 'app.css?v=16', 'app.js?v=16', 'manifest.webmanifest',
+const VERSION = 'gastos-v17';
+const ARCHIVOS = ['./', 'index.html', 'app.css?v=17', 'app.js?v=17', 'manifest.webmanifest',
                   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -37,7 +37,7 @@ self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { titulo: 'Gastos', cuerpo: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.titulo || 'Gasto nuevo', {
-    body: d.cuerpo || '', tag: d.tag || undefined, data: { id: d.id || '' },
+    body: d.cuerpo || '', tag: d.tag || undefined, data: { id: d.id || '', ir: d.ir || '' },
     icon: 'icons/icon-192.png', badge: 'icons/icon-192.png'
   }));
 });
@@ -45,10 +45,11 @@ self.addEventListener('push', (e) => {
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const id = (e.notification.data && e.notification.data.id) || '';
-  const destino = new URL(id ? './?gasto=' + encodeURIComponent(id) : './', self.registration.scope).href;
+  const ir = (e.notification.data && e.notification.data.ir) || '';
+  const destino = new URL(id ? './?gasto=' + encodeURIComponent(id) : (ir ? './?ver=' + ir : './'), self.registration.scope).href;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((ws) => {
     const w = ws.find((c) => c.url.startsWith(self.registration.scope));
-    if (w) { w.postMessage({ tipo: 'gasto', id }); return w.focus(); }
+    if (w) { w.postMessage(id ? { tipo: 'gasto', id } : { tipo: 'ir', ir }); return w.focus(); }
     return self.clients.openWindow(destino);
   }));
 });
