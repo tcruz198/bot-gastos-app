@@ -147,7 +147,7 @@ function pintar() {
   pintarClasificar(d);
   pintarAnotarCats(d);
   pintarGuia(d);
-  if (d.delMes) cal.meses[d.mes] = d.delMes;
+  if (d.delMes) cal.meses[mesISO(d.mes)] = d.delMes;
   if (estado.vista === 'vDias' && cal.mes) pintarCalendario();
   const mios = pendientesDe(d, 'mios').length;
   $('badge').hidden = !mios;
@@ -165,9 +165,22 @@ function saludoDelMomento() {
   return s + ' · ' + DIAS[ahora.getDay()] + ' ' + ahora.getDate();
 }
 
-function nombreMes(aaaamm) {
-  const m = /^(\d{4})-(\d{2})/.exec(aaaamm || '');
-  return m ? MESES[Number(m[2]) - 1] : '';
+/**
+ * El mes como 'aaaa-mm'. La API lo manda como «Noviembre 2026» (nombreDelMes del bot):
+ * el 12-11 el calendario lo esperaba 'aaaa-mm' y salía «undefined NaN» sin grilla.
+ */
+function mesISO(texto) {
+  const t = String(texto || '').trim();
+  let m = /^(\d{4})-(\d{2})/.exec(t);
+  if (m) return m[1] + '-' + m[2];
+  m = /^([a-záéíóúñ]+)\s+(\d{4})$/i.exec(t);
+  if (m) { const i = MESES.indexOf(norm(m[1])); if (i >= 0) return m[2] + '-' + String(i + 1).padStart(2, '0'); }
+  const hoy = new Date();
+  return hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0');
+}
+
+function nombreMes(texto) {
+  return MESES[Number(mesISO(texto).slice(5, 7)) - 1];
 }
 
 function pintarTitulo() {
@@ -529,7 +542,7 @@ async function guardarNuevo() {
 const FUERA_DEL_DIA_A_DIA = ['gasto fijo', 'deudas'];
 const cal = { mes: '', filtro: '', quien: 'todos', meses: {} };  // meses: 'aaaa-mm' → movs
 
-function mesActual() { return estado.datos?.mes || new Date().toISOString().slice(0, 7); }
+function mesActual() { return mesISO(estado.datos?.mes); }
 
 function moverMes(aaaamm, delta) {
   const [a, m] = aaaamm.split('-').map(Number);
