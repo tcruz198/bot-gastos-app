@@ -298,3 +298,50 @@ main { padding: 4px 16px 16px; max-width: 560px; margin: 0 auto; }
 .gasto .chip.sugerida.on small { color: #3A2A05; }
 .gasto-guardar { margin-top: 14px; }
 .gasto-guardar:disabled { background: var(--bg2); color: var(--suave); opacity: 1; }
+
+/* --- v11: se siente como app de iPhone (12-11, lo mismo que Hostal en Obras) --- */
+:root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+
+/* Todo lo que se toca responde hundiéndose un poco */
+.btn, .seg button, .tabs button, .icon-btn, .meta, .card.hero, #mAvisoPend, .chip {
+  transition: transform 0.16s var(--ease-out), background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.btn:active:not(:disabled), .seg button:active, .icon-btn:active, #mAvisoPend:active { transform: scale(0.97); }
+.tabs button:active { transform: scale(0.92); }
+.meta:active { transform: scale(0.985); }
+
+/* Categoría marcada: un pequeño salto; el botón Guardar se enciende */
+.gasto .chip.on { animation: chip-pop 0.28s var(--ease-out); }
+@keyframes chip-pop { 40% { transform: scale(1.07); } }
+.gasto-guardar.listo { animation: guardar-listo 0.32s var(--ease-out); }
+@keyframes guardar-listo { from { transform: translateY(4px); opacity: 0.6; } }
+.gasto { transition: transform 0.3s var(--ease-drawer), opacity 0.25s ease; }
+
+/* Hoja de detalle con la curva del iPhone */
+.hoja { transition: transform 0.42s var(--ease-drawer); }
+.velo { transition: opacity 0.3s ease; }
+
+/* Aviso flotante con rebote suave */
+.toast { animation: subir 0.4s var(--ease-drawer); }
+
+/* Al abrir la app, las tarjetas entran escalonadas (solo la primera vez) */
+@media (prefers-reduced-motion: no-preference) {
+  .entrando main .card { animation: entra 0.5s var(--ease-out) both; }
+  .entrando main .card:nth-child(2) { animation-delay: 40ms; }
+  .entrando main .card:nth-child(3) { animation-delay: 80ms; }
+  .entrando main .card:nth-child(4) { animation-delay: 120ms; }
+  .entrando main .card:nth-child(n+5) { animation-delay: 160ms; }
+}
+@keyframes entra { from { opacity: 0; transform: translateY(10px); } }
+
+/* Cambio de pestaña: fundido corto, encabezado y barra quietos (como Hostal en Obras) */
+.top { view-transition-name: encabezado; }
+.tabs { view-transition-name: pestanas; }
+::view-transition-group(encabezado), ::view-transition-group(pestanas) { animation: none; }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-transicion="pestana"]::view-transition-old(root) { animation: vt-fuera 140ms ease-out both; }
+  html[data-transicion="pestana"]::view-transition-new(root) { animation: vt-dentro 240ms var(--ease-out) both; }
+}
+@keyframes vt-fuera { to { opacity: 0; } }
+@keyframes vt-dentro { from { opacity: 0; transform: scale(0.985); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

@@ -292,6 +292,26 @@ function abrirCategoria(cat) {
   $('velo').hidden = $('hoja').hidden = false;
   requestAnimationFrame(() => { $('velo').classList.add('on'); $('hoja').classList.add('on'); });
 }
+/** La hoja de detalle se cierra deslizándola hacia abajo, como en el iPhone (si está arriba del todo). */
+function arrastrarHoja() {
+  const hoja = $('hoja'); if (!hoja) return;
+  let y0 = null; let dy = 0;
+  hoja.addEventListener('touchstart', (e) => {
+    y0 = hoja.scrollTop <= 0 ? e.touches[0].clientY : null; dy = 0;
+  }, { passive: true });
+  hoja.addEventListener('touchmove', (e) => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    if (dy > 0) { hoja.style.transition = 'none'; hoja.style.transform = `translateY(${dy}px)`; }
+  }, { passive: true });
+  hoja.addEventListener('touchend', () => {
+    if (y0 === null) return;
+    hoja.style.transition = ''; hoja.style.transform = '';
+    if (dy > 90) cerrarHoja();
+    y0 = null;
+  });
+}
+
 function cerrarHoja() {
   $('velo').classList.remove('on'); $('hoja').classList.remove('on');
   setTimeout(() => { $('velo').hidden = $('hoja').hidden = true; }, 220);
@@ -314,6 +334,11 @@ function pendientesDe(d, quien) {
 }
 
 function pintarClasificar(d) {
+  // Lo escrito y la categoría marcada sobreviven al repintar (antes se borraban al guardar otra tarjeta).
+  const previo = {};
+  document.querySelectorAll('#cLista .gasto').forEach((c) => {
+    previo[c.dataset.id] = { nota: c.querySelector('.gasto-input')?.value, cat: c.dataset.cat || '' };
+  });
   // Del más nuevo al más viejo (la API ya los manda así; esto es por si acaso).
   const lista = pendientesDe(d, estado.quien).slice()
     .sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora));
@@ -338,7 +363,40 @@ function pintarClasificar(d) {
       <div class="chips">${d.categorias.filter((c) => !m.sugerida || c !== m.sugerida.categoria).map((c) => `<button class="chip" data-cat="${esc(c)}">${emojiDe(c)} ${esc(c)}</button>`).join('')}</div>
       <button class="btn gasto-guardar" disabled>Elige una categoría</button>
     </div>`).join('');
+  document.querySelectorAll('#cLista .gasto').forEach((card) => {
+    const p = previo[card.dataset.id]; if (!p) return;
+    if (p.nota !== undefined) card.querySelector('.gasto-input').value = p.nota;
+    if (p.cat) marcarCategoria(card, p.cat, true);
+  });
 }
+
+/** Marca (o desmarca con '') la categoría de una tarjeta y deja listo el botón Guardar. */
+function marcarCategoria(card, cat, sinEfecto) {
+  card.dataset.cat = cat;
+  card.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', !!cat && c.dataset.cat === cat));
+  const btn = card.querySelector('.gasto-guardar');
+  btn.disabled = !cat;
+  btn.textContent = cat ? 'Guardar en ' + emojiDe(cat) + ' ' + cat : 'Elige una categoría';
+  if (!sinEfecto && cat) { toque(); btn.classList.remove('listo'); void btn.offsetWidth; btn.classList.add('listo'); }
+}
+
+/** Vibración cortita al tocar (Android; el iPhone no la permite a páginas web y la ignora). */
+function toque(ms) { try { navigator.vibrate && navigator.vibrate(ms || 8); } catch (e) { /* nada */ } }
+
+/** La tarjeta se va a la derecha y después se cierra el hueco: la siguiente sube sola. */
+function sacarTarjeta(card) {
+  card.classList.add('saliendo');
+  if (sinMovimiento() || !card.animate) return;
+  const cs = getComputedStyle(card);
+  const desde = { height: card.offsetHeight + 'px', marginBottom: cs.marginBottom, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom };
+  card.style.overflow = 'hidden';
+  setTimeout(() => {
+    card.animate([desde, { height: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px' }],
+    { duration: 260, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' });
+  }, 220);
+}
+
+function sinMovimiento() { return !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; }
 
 function pintarAnotarCats(d) {
   $('aCats').innerHTML = d.categorias.map((c) =>
@@ -351,7 +409,7 @@ async function clasificar(card, categoria) {
   const id = card.dataset.id;
   const m = estado.datos.sinCategoria.find((x) => x.id === id);
   estado.enVuelo.add(id);
-  card.classList.add('saliendo');
+  sacarTarjeta(card);
   actualizarBadge();
 
   try {
@@ -363,6 +421,7 @@ async function clasificar(card, categoria) {
     const rec = estado.datos.recientes.find((x) => x.id === id);
     if (rec) { rec.categoria = categoria; if (nota) rec.notas = nota; }
     guardarLS(LS_DATOS, estado.datos);
+    toque(14);
     aviso('✅ Guardado: ' + nombreDe(m) + ' → ' + categoria + (nota ? ' · ' + nota : ''));
   } catch (e) {
     aviso(e.message + ' — no se guardó.', true);
@@ -424,6 +483,17 @@ async function guardarNuevo() {
 // --- Navegación y avisos --------------------------------------------------
 
 function irA(vista) {
+  const doc = document;
+  if (estado.vista && estado.vista !== vista && doc.startViewTransition && !sinMovimiento()) {
+    doc.documentElement.dataset.transicion = 'pestana';
+    const t = doc.startViewTransition(() => cambiarVista(vista));
+    t.finished.finally(() => { delete doc.documentElement.dataset.transicion; });
+    return;
+  }
+  cambiarVista(vista);
+}
+
+function cambiarVista(vista) {
   estado.vista = vista;
   ['vMes', 'vClasificar', 'vAnotar'].forEach((v) => { $(v).hidden = v !== vista; });
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === vista));
@@ -454,6 +524,7 @@ function conectar() {
     const t = e.target.closest('[data-cat]'); if (t) abrirCategoria(t.dataset.cat);
   }));
   on('velo', 'click', cerrarHoja);
+  arrastrarHoja();
   on('hCerrar', 'click', cerrarHoja);
 
   on('segQuien', 'click', (e) => {
@@ -476,12 +547,7 @@ function conectar() {
       return;
     }
     const chip = e.target.closest('.chip'); if (!chip) return;
-    const cat = card.dataset.cat === chip.dataset.cat ? '' : chip.dataset.cat;
-    card.dataset.cat = cat;
-    card.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', !!cat && c.dataset.cat === cat));
-    const btn = card.querySelector('.gasto-guardar');
-    btn.disabled = !cat;
-    btn.textContent = cat ? 'Guardar en ' + emojiDe(cat) + ' ' + cat : 'Elige una categoría';
+    marcarCategoria(card, card.dataset.cat === chip.dataset.cat ? '' : chip.dataset.cat);
   });
 
   on('aTipo', 'click', (e) => {
@@ -531,6 +597,8 @@ function iniciar() {
 
   // Lo último que se vio aparece al tiro; Google responde en unos segundos.
   estado.datos = normalizar(leerLS(LS_DATOS));
+  document.documentElement.classList.add('entrando');
+  setTimeout(() => document.documentElement.classList.remove('entrando'), 900);
   irA('vMes');
   if (estado.datos) pintar();
   else $('mRecientes').innerHTML = '<div class="cargando">Leyendo la planilla…</div>';
