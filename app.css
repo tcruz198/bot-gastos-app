@@ -367,3 +367,18 @@ main { padding: 4px 16px 16px; max-width: 560px; margin: 0 auto; }
 .switch i { position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff;
   box-shadow: 0 2px 4px rgba(0,0,0,0.3); transition: transform 0.3s var(--ease-drawer); }
 .switch.on i { transform: translateX(20px); }
+
+/* --- v14: emojis y saludo (12-11) --- */
+.top h1 { display: flex; align-items: center; gap: 8px; }
+.saluda { display: inline-block; transform-origin: 70% 80%; }
+@media (prefers-reduced-motion: no-preference) {
+  .saluda { animation: saluda 1.6s ease-in-out 0.3s 1 both; }
+}
+@keyframes saluda {
+  0%, 60%, 100% { transform: rotate(0); }
+  10%, 30% { transform: rotate(16deg); }
+  20%, 40% { transform: rotate(-8deg); }
+  50% { transform: rotate(10deg); }
+}
+.top-sub { text-transform: none; letter-spacing: 0; font-size: 14px; }
+#mAvisoPend.al-dia { background: color-mix(in srgb, var(--menta) 14%, var(--card)); color: var(--texto); cursor: default; }

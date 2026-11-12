@@ -153,11 +153,45 @@ function pintar() {
   pintarTitulo();
 }
 
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** «Buenos días ☀️ · jueves 12»: cambia con la hora del teléfono. */
+function saludoDelMomento() {
+  const ahora = new Date();
+  const h = ahora.getHours();
+  const s = h >= 5 && h < 12 ? 'Buenos días ☀️' : h >= 12 && h < 20 ? 'Buenas tardes 🌤️' : 'Buenas noches 🌙';
+  return s + ' · ' + DIAS[ahora.getDay()] + ' ' + ahora.getDate();
+}
+
+function nombreMes(aaaamm) {
+  const m = /^(\d{4})-(\d{2})/.exec(aaaamm || '');
+  return m ? MESES[Number(m[2]) - 1] : '';
+}
+
 function pintarTitulo() {
   const d = estado.datos;
-  const titulos = { vMes: d ? d.mes : 'Gastos', vClasificar: 'Clasificar', vAnotar: 'Anotar gasto' };
-  $('topTitle').textContent = titulos[estado.vista] || 'Gastos';
-  $('topSub').textContent = d ? 'Hola ' + d.persona : 'Gastos';
+  const nombre = d ? d.persona : '';
+  const titulos = {
+    vMes: nombre ? `Hola ${esc(nombre)} <span class="saluda">👋🏼</span>` : 'Gastos',
+    vClasificar: '🏷️ Clasificar',
+    vAnotar: '✍️ Anotar gasto'
+  };
+  const html = titulos[estado.vista] || 'Gastos';
+  if ($('topTitle').innerHTML !== html) $('topTitle').innerHTML = html;
+  $('topSub').textContent = saludoDelMomento();
+}
+
+/** El monto grande sube desde cero la primera vez que se pinta (después cambia directo). */
+function contarHasta(el, valor, formato) {
+  if (sinMovimiento() || estado.contado || !isFinite(valor)) { el.textContent = formato(valor); return; }
+  estado.contado = true;
+  const t0 = performance.now(), dur = 900;
+  const paso = (t) => {
+    const k = Math.min(1, (t - t0) / dur);
+    el.textContent = formato(Math.round(valor * (1 - Math.pow(1 - k, 3))));
+    if (k < 1) requestAnimationFrame(paso);
+  };
+  requestAnimationFrame(paso);
 }
 
 // La misma silueta de los tres que va en el index (de la mano, discreta).
@@ -186,11 +220,13 @@ function ritmo(pct, avance) {
 
 function pintarMes(d) {
   const queda = d.ingresos - d.total;
-  $('mQueda').textContent = d.ingresos ? pesos(queda) : '—';
+  if (d.ingresos) contarHasta($('mQueda'), queda, pesos); else $('mQueda').textContent = '—';
+  const mes = nombreMes(d.mes);
+  if ($('mHeroLabel')) $('mHeroLabel').textContent = '💰 Queda del sueldo' + (mes ? ' en ' + mes : '');
   $('mQueda').classList.toggle('neg', queda < 0);
   const faltan = d.diasRestantes ?? null;
   $('mHeroSub').innerHTML = `Gastado <b>${pesos(d.total)}</b>${d.ingresos ? ' de ' + pesos(d.ingresos) : ''}` +
-    (faltan !== null ? ` · faltan <b>${faltan}</b> día${faltan === 1 ? '' : 's'}` : '') +
+    (faltan !== null ? ` · 📅 faltan <b>${faltan}</b> día${faltan === 1 ? '' : 's'}` : '') +
     ` · ${d.cantidad} gastos`;
 
   const tot = (d.tomas + d.marta) || 1;
@@ -205,12 +241,13 @@ function pintarMes(d) {
   if (d.totalUSD > 0) $('mUSD').textContent = 'Además US$' + d.totalUSD.toFixed(2) + ' en dólares (fuera del total).';
 
   const pend = pendientesDe(d, 'mios');
-  $('mAvisoPend').hidden = !pend.length;
-  if (pend.length) {
-    $('mAvisoPend').innerHTML = `🏷️ <span>Tienes <b>${pend.length}</b> gasto${pend.length > 1 ? 's' : ''} sin categoría. <u>Clasificar</u></span>`;
-  }
+  $('mAvisoPend').hidden = false;
+  $('mAvisoPend').classList.toggle('al-dia', !pend.length);
+  $('mAvisoPend').innerHTML = pend.length
+    ? `🏷️ <span>Tienes <b>${pend.length}</b> gasto${pend.length > 1 ? 's' : ''} sin categoría. <u>Clasificar</u></span>`
+    : `✨ <span>Tienes todo clasificado, bien ahí 🙌</span>`;
 
-  $('mAvance').textContent = '· va el ' + d.avanceMes + '% del mes';
+  $('mAvance').textContent = '· va el ' + d.avanceMes + '% del mes ⏳';
   const pres = d.presupuesto || [];
 
   // Meta de deuda: acá llenar la barra es lo bueno.
@@ -250,7 +287,7 @@ function pintarMes(d) {
     : '<div class="card muted">Sin topes definidos en la hoja Presupuesto.</div>';
 
   const fijos = pres.filter((p) => FIJOS.includes(norm(p.categoria)));
-  $('mFijos').innerHTML = fijos.length ? '<h3 class="sec">Fijos del depto</h3>' +
+  $('mFijos').innerHTML = fijos.length ? '<h3 class="sec">🏠 Fijos del depto</h3>' +
     '<div class="grid-cats">' + fijos.map((p) => tarjeta(p, true)).join('') + '</div>' : '';
 
   const conTope = new Set(pres.map((p) => norm(p.categoria)));
@@ -424,7 +461,7 @@ async function clasificar(card, categoria) {
     if (rec) { rec.categoria = categoria; if (nota) rec.notas = nota; }
     guardarLS(LS_DATOS, estado.datos);
     toque(14);
-    aviso('✅ Guardado: ' + nombreDe(m) + ' → ' + categoria + (nota ? ' · ' + nota : ''));
+    aviso(['✅', '🙌', '✨', '👌', '💪'][Math.floor(Math.random() * 5)] + ' Guardado: ' + nombreDe(m) + ' → ' + categoria + (nota ? ' · ' + nota : ''));
   } catch (e) {
     aviso(e.message + ' — no se guardó.', true);
   } finally {
@@ -630,7 +667,7 @@ function on(id, evento, fn) { const el = $(id); if (el) el.addEventListener(even
 function conectar() {
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => irA(b.dataset.tab)));
   on('btnRefrescar', 'click', refrescar);
-  on('mAvisoPend', 'click', () => irA('vClasificar'));
+  on('mAvisoPend', 'click', () => { if (!$('mAvisoPend').classList.contains('al-dia')) irA('vClasificar'); });
   ['mCats', 'mFijos', 'mMeta'].forEach((id) => on(id, 'click', (e) => {
     const t = e.target.closest('[data-cat]'); if (t) abrirCategoria(t.dataset.cat);
   }));
