@@ -330,12 +330,13 @@ function pintarClasificar(d) {
       </div>
       <div class="gasto-meta">${diaLegible(m.fecha)} ${esc(m.hora)} · ${esc(m.persona)}${m.tipo ? ' · ' + esc(m.tipo) : ''}</div>
       <input class="gasto-input" type="text" placeholder="Qué fue (ej: feria, regalo Cony…)" value="${esc(m.comercio ? m.notas : '')}" autocomplete="off" enterkeyhint="done">
-      <div class="gasto-ayuda">${m.sugerida ? 'Si está bien, toca la sugerida. Puedes escribir qué fue antes.' : 'Escribe qué fue y toca la categoría para guardar.'}</div>
+      <div class="gasto-ayuda">${m.sugerida ? 'Si está bien, toca la sugerida y después Guardar.' : 'Escribe qué fue, elige la categoría y toca Guardar.'}</div>
       ${m.sugerida ? `<button class="chip sugerida" data-cat="${esc(m.sugerida.categoria)}">
         <span>✓ ${emojiDe(m.sugerida.categoria)} ${esc(m.sugerida.categoria)}</span>
         <small>${m.sugerida.total > 1 ? `así quedó ${m.sugerida.veces} de ${m.sugerida.total} veces` : 'así quedó la vez anterior'}</small></button>
         <div class="otra">u otra:</div>` : ''}
       <div class="chips">${d.categorias.filter((c) => !m.sugerida || c !== m.sugerida.categoria).map((c) => `<button class="chip" data-cat="${esc(c)}">${emojiDe(c)} ${esc(c)}</button>`).join('')}</div>
+      <button class="btn gasto-guardar" disabled>Elige una categoría</button>
     </div>`).join('');
 }
 
@@ -465,9 +466,22 @@ function conectar() {
   on('cLista', 'keydown', (e) => {
     if (e.key === 'Enter' && e.target.classList.contains('gasto-input')) e.target.blur();
   });
+  // Tocar una categoría solo la marca: se guarda recién con el botón Guardar.
+  // Antes guardaba al tiro y un dedazo quedaba mal clasificado (Marta, 12-11).
   on('cLista', 'click', (e) => {
+    const card = e.target.closest('.gasto'); if (!card) return;
+    const guardar = e.target.closest('.gasto-guardar');
+    if (guardar) {
+      if (card.dataset.cat && !guardar.disabled) { guardar.disabled = true; clasificar(card, card.dataset.cat); }
+      return;
+    }
     const chip = e.target.closest('.chip'); if (!chip) return;
-    clasificar(chip.closest('.gasto'), chip.dataset.cat);
+    const cat = card.dataset.cat === chip.dataset.cat ? '' : chip.dataset.cat;
+    card.dataset.cat = cat;
+    card.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', !!cat && c.dataset.cat === cat));
+    const btn = card.querySelector('.gasto-guardar');
+    btn.disabled = !cat;
+    btn.textContent = cat ? 'Guardar en ' + emojiDe(cat) + ' ' + cat : 'Elige una categoría';
   });
 
   on('aTipo', 'click', (e) => {
