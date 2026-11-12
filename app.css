@@ -470,3 +470,8 @@ main { padding: 4px 16px 16px; max-width: 560px; margin: 0 auto; }
 .cal-dia.fam:active { transform: scale(0.92); }
 #calProximos .fam-card { margin-bottom: 8px; }
 .hoja .btn[data-nuevo-evento] { margin-top: 14px; }
+
+/* --- v19: dónde se pagó (Apple Pay + Atajos, 12-11) --- */
+.lugar { display: inline-block; margin-top: 3px; font-size: 12.5px; color: var(--menta); text-decoration: none; overflow-wrap: anywhere; }
+.gasto-lugar { margin: -8px 0 12px; }
+.gasto-lugar .lugar { font-size: 13.5px; }

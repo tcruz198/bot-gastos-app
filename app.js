@@ -320,6 +320,14 @@ function pintarMes(d) {
 }
 
 /** Gastos agrupados por día (se usa en el mes y en el detalle de una categoría). */
+/** «📍 Av. Irarrázaval 3450, Ñuñoa» que abre Mapas (solo pagos con Apple Pay y la automatización activada). */
+function lugarDe(m) {
+  if (!m.lugar || !m.lugar.lat) return '';
+  const dir = (m.lugar.dir || 'Ver en el mapa').replace(/, Región Metropolitana$/, '').replace(/, Santiago, /, ', ');
+  const url = `https://maps.apple.com/?ll=${encodeURIComponent(m.lugar.lat)},${encodeURIComponent(m.lugar.lon)}&q=${encodeURIComponent(nombreDe(m))}`;
+  return `<a class="lugar" href="${url}" target="_blank" rel="noopener">📍 ${esc(dir)}</a>`;
+}
+
 function listaMovs(movs) {
   let html = '', diaPrevio = '';
   movs.forEach((m) => {
@@ -328,7 +336,7 @@ function listaMovs(movs) {
     const detalle = m.comercio && m.notas ? m.notas : (sin ? '' : m.categoria);
     html += `<div class="fila">
       <div class="mov-izq"><div class="mov-nombre">${esc(nombreDe(m))}</div>
-      <div class="mov-meta"><i class="punto" style="background:var(--${m.persona === 'Marta' ? 'marta' : 'tomas'})"></i>${sin ? '<span class="tag-sin">sin categoría</span>' : esc(detalle)}</div></div>
+      <div class="mov-meta"><i class="punto" style="background:var(--${m.persona === 'Marta' ? 'marta' : 'tomas'})"></i>${sin ? '<span class="tag-sin">sin categoría</span>' : esc(detalle)}</div>${lugarDe(m)}</div>
       <div class="monto">${montoDe(m)}</div></div>`;
   });
   return html;
@@ -412,6 +420,7 @@ function pintarClasificar(d) {
         <div class="gasto-monto">${montoDe(m)}</div>
       </div>
       <div class="gasto-meta">${diaLegible(m.fecha)} ${esc(m.hora)} · ${esc(m.persona)}${m.tipo ? ' · ' + esc(m.tipo) : ''}</div>
+      ${lugarDe(m) ? `<div class="gasto-lugar">${lugarDe(m)}</div>` : ''}
       <input class="gasto-input" type="text" placeholder="Qué fue (ej: feria, regalo Cony…)" value="${esc(m.comercio ? m.notas : '')}" autocomplete="off" enterkeyhint="done">
       <div class="gasto-ayuda">${m.sugerida ? 'Si está bien, toca la sugerida y después Guardar.' : 'Escribe qué fue, elige la categoría y toca Guardar.'}</div>
       ${m.sugerida ? `<button class="chip sugerida" data-cat="${esc(m.sugerida.categoria)}">
