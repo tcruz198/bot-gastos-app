@@ -508,8 +508,8 @@ async function pintarPush() {
   caja.hidden = false;
   caja.classList.toggle('activo', !!activo);
   if (activo) {
-    caja.innerHTML = `<div class="push-fila"><span>🔔 <b>Avisos activos</b> en este teléfono</span>
-      <span class="push-acc"><button data-push="probar">Probar</button><button data-push="apagar">Apagar</button></span></div>`;
+    caja.innerHTML = `<div class="push-fila"><span class="push-txt"><b>🔔 Avisos de gastos</b><small>Activos en este teléfono</small></span>
+      <button class="switch on" data-push="apagar" role="switch" aria-checked="true" aria-label="Apagar avisos"><i></i></button></div>`;
   } else if (Notification.permission === 'denied') {
     caja.innerHTML = `<div class="push-fila"><span>🔕 Los avisos están bloqueados. Actívalos en Ajustes del teléfono, en Notificaciones, para la app Gastos.</span></div>`;
   } else {
@@ -531,7 +531,7 @@ async function activarAvisos(btn) {
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64aBytes(v.publica) });
     await mandarSuscripcion(sub);
     const p = await llamar('probarAviso');
-    aviso(p.ok ? '✅ Listo, te mandé un aviso de prueba' : 'Quedó activado, pero la prueba no llegó: ' + (p.error || ''), !p.ok);
+    aviso(p.ok ? '✅ Avisos activados' : 'Quedó activado, pero el aviso no llegó: ' + (p.error || ''), !p.ok);
   } catch (e) {
     aviso('No se pudo activar: ' + e.message, true);
   } finally {
@@ -560,13 +560,8 @@ async function accionPush(e) {
   const b = e.target.closest('[data-push]'); if (!b) return;
   const que = b.dataset.push;
   if (que === 'activar') return activarAvisos(b);
-  if (que === 'probar') {
-    b.disabled = true;
-    try { const p = await llamar('probarAviso'); aviso(p.ok ? '✅ Aviso de prueba enviado' : 'No llegó: ' + (p.error || ''), !p.ok); }
-    catch (err) { aviso(err.message, true); }
-    finally { b.disabled = false; }
-  }
   if (que === 'apagar') {
+    b.classList.remove('on'); toque();
     const sub = await suscripcionActual().catch(() => null);
     if (sub) { llamar('desuscribir', { endpoint: sub.endpoint }).catch(() => {}); await sub.unsubscribe().catch(() => {}); }
     try { localStorage.removeItem(LS_PUSH); } catch (err) { /* nada */ }

@@ -357,3 +357,13 @@ main { padding: 4px 16px 16px; max-width: 560px; margin: 0 auto; }
 .push-acc button { padding: 6px 11px; border-radius: 999px; background: var(--bg2); font-size: 13px; font-weight: 600; }
 .push-acc button:active { transform: scale(0.95); }
 .gasto.pedido { box-shadow: 0 0 0 2px var(--oro); transition: box-shadow 0.4s ease; }
+
+/* --- v13: avisos con interruptor tipo iPhone (12-11) --- */
+.push-txt { display: flex; flex-direction: column; gap: 1px; }
+.push-txt small { color: var(--suave); font-size: 13px; }
+.switch { position: relative; flex-shrink: 0; width: 51px; height: 31px; border-radius: 16px; background: var(--linea);
+  transition: background-color 0.25s ease; }
+.switch.on { background: var(--menta); }
+.switch i { position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3); transition: transform 0.3s var(--ease-drawer); }
+.switch.on i { transform: translateX(20px); }
