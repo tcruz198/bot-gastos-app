@@ -1,7 +1,7 @@
 // Guarda la app (no los datos) para que abra al instante y sin señal.
 // Subir VERSION en cada cambio de la app, o los teléfonos siguen con la vieja.
-const VERSION = 'gastos-v11';
-const ARCHIVOS = ['./', 'index.html', 'app.css?v=11', 'app.js?v=11', 'manifest.webmanifest',
+const VERSION = 'gastos-v12';
+const ARCHIVOS = ['./', 'index.html', 'app.css?v=12', 'app.js?v=12', 'manifest.webmanifest',
                   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -29,4 +29,26 @@ self.addEventListener('fetch', (e) => {
       })
       .catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('index.html')))
   );
+});
+
+// --- Avisos (Web Push, 12-11) ---
+// El bot manda { titulo, cuerpo, id, tag } cifrado; al tocarlo se abre la app en ese gasto.
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { titulo: 'Gastos', cuerpo: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.titulo || 'Gasto nuevo', {
+    body: d.cuerpo || '', tag: d.tag || undefined, data: { id: d.id || '' },
+    icon: 'icons/icon-192.png', badge: 'icons/icon-192.png'
+  }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const id = (e.notification.data && e.notification.data.id) || '';
+  const destino = new URL(id ? './?gasto=' + encodeURIComponent(id) : './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((ws) => {
+    const w = ws.find((c) => c.url.startsWith(self.registration.scope));
+    if (w) { w.postMessage({ tipo: 'gasto', id }); return w.focus(); }
+    return self.clients.openWindow(destino);
+  }));
 });

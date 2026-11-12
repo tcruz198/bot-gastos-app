@@ -10,6 +10,7 @@
 const LS_CFG = 'gastos.cfg';
 const LS_DATOS = 'gastos.datos';
 const LS_BORRADOR = 'gastos.borrador';
+const LS_PUSH = 'gastos.push';   // { endpoint, enviado: ms } de la suscripción de este teléfono
 
 const $ = (id) => document.getElementById(id);
 const estado = {
@@ -368,6 +369,7 @@ function pintarClasificar(d) {
     if (p.nota !== undefined) card.querySelector('.gasto-input').value = p.nota;
     if (p.cat) marcarCategoria(card, p.cat, true);
   });
+  enfocarGastoPedido();
 }
 
 /** Marca (o desmarca con '') la categoría de una tarjeta y deja listo el botón Guardar. */
@@ -480,6 +482,120 @@ async function guardarNuevo() {
   }
 }
 
+// --- Avisos en el teléfono (Web Push, 12-11) -------------------------------
+// En iPhone solo existe con la app agregada a la pantalla de inicio (iOS 16.4+).
+
+function pushPosible() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+function b64aBytes(b64) {
+  const s = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64.length + 3) % 4));
+  return Uint8Array.from(s, (c) => c.charCodeAt(0));
+}
+
+async function suscripcionActual() {
+  if (!pushPosible()) return null;
+  const reg = await navigator.serviceWorker.ready;
+  return reg.pushManager.getSubscription();
+}
+
+async function pintarPush() {
+  const caja = $('mPush'); if (!caja) return;
+  if (!pushPosible() || !estado.cfg) { caja.hidden = true; return; }
+  const sub = await suscripcionActual().catch(() => null);
+  const activo = sub && Notification.permission === 'granted';
+  caja.hidden = false;
+  caja.classList.toggle('activo', !!activo);
+  if (activo) {
+    caja.innerHTML = `<div class="push-fila"><span>🔔 <b>Avisos activos</b> en este teléfono</span>
+      <span class="push-acc"><button data-push="probar">Probar</button><button data-push="apagar">Apagar</button></span></div>`;
+  } else if (Notification.permission === 'denied') {
+    caja.innerHTML = `<div class="push-fila"><span>🔕 Los avisos están bloqueados. Actívalos en Ajustes del teléfono, en Notificaciones, para la app Gastos.</span></div>`;
+  } else {
+    caja.innerHTML = `<div class="push-tit">🔔 Que te avise cuando hay un gasto</div>
+      <div class="push-sub">Te llega una notificación con cada compra y al tocarla la clasificas al tiro.</div>
+      <button class="btn" data-push="activar">Activar avisos</button>`;
+  }
+}
+
+async function activarAvisos(btn) {
+  btn.disabled = true; btn.textContent = 'Activando…';
+  try {
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted') { aviso('Sin permiso no puedo avisarte. Puedes darlo después en Ajustes.', true); return; }
+    const v = await llamar('vapid');
+    if (!v.ok) throw new Error(v.error || 'No pude preparar los avisos');
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64aBytes(v.publica) });
+    await mandarSuscripcion(sub);
+    const p = await llamar('probarAviso');
+    aviso(p.ok ? '✅ Listo, te mandé un aviso de prueba' : 'Quedó activado, pero la prueba no llegó: ' + (p.error || ''), !p.ok);
+  } catch (e) {
+    aviso('No se pudo activar: ' + e.message, true);
+  } finally {
+    pintarPush();
+  }
+}
+
+async function mandarSuscripcion(sub) {
+  const r = await llamar('suscribir', { sub: JSON.stringify(sub) });
+  if (!r.ok) throw new Error(r.error || 'No se guardó la suscripción');
+  guardarLS(LS_PUSH, { endpoint: sub.endpoint, enviado: Date.now() });
+}
+
+/** Una vez por semana se vuelve a mandar la suscripción: el teléfono a veces la cambia sin avisar. */
+async function renovarSuscripcion() {
+  try {
+    if (!pushPosible() || Notification.permission !== 'granted') return;
+    const sub = await suscripcionActual(); if (!sub) return;
+    const p = leerLS(LS_PUSH) || {};
+    if (p.endpoint === sub.endpoint && Date.now() - (p.enviado || 0) < 7 * 864e5) return;
+    await mandarSuscripcion(sub);
+  } catch (e) { /* se intenta en la próxima apertura */ }
+}
+
+async function accionPush(e) {
+  const b = e.target.closest('[data-push]'); if (!b) return;
+  const que = b.dataset.push;
+  if (que === 'activar') return activarAvisos(b);
+  if (que === 'probar') {
+    b.disabled = true;
+    try { const p = await llamar('probarAviso'); aviso(p.ok ? '✅ Aviso de prueba enviado' : 'No llegó: ' + (p.error || ''), !p.ok); }
+    catch (err) { aviso(err.message, true); }
+    finally { b.disabled = false; }
+  }
+  if (que === 'apagar') {
+    const sub = await suscripcionActual().catch(() => null);
+    if (sub) { llamar('desuscribir', { endpoint: sub.endpoint }).catch(() => {}); await sub.unsubscribe().catch(() => {}); }
+    try { localStorage.removeItem(LS_PUSH); } catch (err) { /* nada */ }
+    aviso('Avisos apagados en este teléfono');
+    pintarPush();
+  }
+}
+
+/** Al tocar un aviso se abre la app en ese gasto (?gasto=id, o mensaje del service worker si ya estaba abierta). */
+function irAGasto(id) {
+  if (!id) return;
+  estado.irAGasto = id;
+  estado.quien = 'mios';
+  $('segQuien')?.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.v === 'mios'));
+  irA('vClasificar');
+  if (estado.datos) pintarClasificar(estado.datos);
+  refrescar();
+}
+
+function enfocarGastoPedido() {
+  const id = estado.irAGasto; if (!id) return;
+  const card = [...document.querySelectorAll('#cLista .gasto')].find((c) => c.dataset.id === id);
+  if (!card) return;
+  estado.irAGasto = null;
+  card.scrollIntoView({ block: 'center', behavior: sinMovimiento() ? 'auto' : 'smooth' });
+  card.classList.add('pedido');
+  setTimeout(() => card.classList.remove('pedido'), 2200);
+}
+
 // --- Navegación y avisos --------------------------------------------------
 
 function irA(vista) {
@@ -524,6 +640,12 @@ function conectar() {
     const t = e.target.closest('[data-cat]'); if (t) abrirCategoria(t.dataset.cat);
   }));
   on('velo', 'click', cerrarHoja);
+  on('mPush', 'click', accionPush);
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data && e.data.tipo === 'gasto') irAGasto(e.data.id);
+    });
+  }
   arrastrarHoja();
   on('hCerrar', 'click', cerrarHoja);
 
@@ -599,10 +721,14 @@ function iniciar() {
   estado.datos = normalizar(leerLS(LS_DATOS));
   document.documentElement.classList.add('entrando');
   setTimeout(() => document.documentElement.classList.remove('entrando'), 900);
+  const pedido = new URLSearchParams(location.search).get('gasto');
+  if (pedido) history.replaceState(null, '', location.pathname);
   irA('vMes');
   if (estado.datos) pintar();
   else $('mRecientes').innerHTML = '<div class="cargando">Leyendo la planilla…</div>';
-  refrescar();
+  if (pedido) irAGasto(pedido); else refrescar();
+  pintarPush();
+  renovarSuscripcion();
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 }

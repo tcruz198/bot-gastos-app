@@ -345,3 +345,15 @@ main { padding: 4px 16px 16px; max-width: 560px; margin: 0 auto; }
 @keyframes vt-fuera { to { opacity: 0; } }
 @keyframes vt-dentro { from { opacity: 0; transform: scale(0.985); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* --- v12: avisos en el teléfono (12-11) --- */
+.push { margin-top: 12px; }
+.push-tit { font-weight: 700; font-size: 16px; }
+.push-sub { color: var(--suave); font-size: 14px; margin-top: 2px; }
+.push .btn { margin-top: 12px; }
+.push.activo { padding-top: 12px; padding-bottom: 12px; }
+.push-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+.push-acc { display: flex; gap: 6px; flex-shrink: 0; }
+.push-acc button { padding: 6px 11px; border-radius: 999px; background: var(--bg2); font-size: 13px; font-weight: 600; }
+.push-acc button:active { transform: scale(0.95); }
+.gasto.pedido { box-shadow: 0 0 0 2px var(--oro); transition: box-shadow 0.4s ease; }
