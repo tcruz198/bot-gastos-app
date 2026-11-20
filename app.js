@@ -559,8 +559,18 @@ function pintarLectura(l) {
   const parrafos = esc(l.texto).split(/\n+/).filter((x) => x.trim());
   caja.hidden = false;
   caja.innerHTML = `<button class="lectura-top" data-lectura>
-      <span><b>${tit}</b><small>Escrita por Claude con los gastos del mes</small></span><span class="lectura-flecha">${abierta ? '▴' : '▾'}</span></button>
+      <span><b>${tit}</b><small>${esc(cuandoLectura(l))}</small></span><span class="lectura-flecha">${abierta ? '▴' : '▾'}</span></button>
     <div class="lectura-txt${abierta ? '' : ' corta'}">${parrafos.map((x) => `<p>${x}</p>`).join('')}</div>`;
+}
+
+/** «Escrita por Claude con los gastos al jueves 12» (l.fecha = 'aaaa-mm-dd HH:mm'). */
+function cuandoLectura(l) {
+  const f = String(l.fecha || '').slice(0, 10).split('-').map(Number);
+  if (f.length < 3 || !f[2]) return 'Escrita por Claude con los gastos del mes';
+  const d = new Date(f[0], f[1] - 1, f[2]);
+  const dia = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][d.getDay()];
+  return l.tipo === 'avance' ? 'Escrita por Claude con los gastos al ' + dia + ' ' + f[2]
+                             : 'Escrita por Claude al cerrar el mes';
 }
 
 // Qué día se gastó en qué: el mes en grilla, con filtro por categoría y persona.
@@ -989,19 +999,15 @@ async function pintarPush() {
   const caja = $('mPush'); if (!caja) return;
   if (!pushPosible() || !estado.cfg) { caja.hidden = true; return; }
   const sub = await suscripcionActual().catch(() => null);
-  const activo = sub && Notification.permission === 'granted';
-  caja.hidden = false;
-  caja.classList.toggle('activo', !!activo);
-  if (activo) {
-    caja.innerHTML = `<div class="push-fila"><span class="push-txt"><b>🔔 Avisos de gastos</b><small>Activos en este teléfono</small></span>
-      <button class="switch on" data-push="apagar" role="switch" aria-checked="true" aria-label="Apagar avisos"><i></i></button></div>`;
-  } else if (Notification.permission === 'denied') {
-    caja.innerHTML = `<div class="push-fila"><span>🔕 Los avisos están bloqueados. Actívalos en Ajustes del teléfono, en Notificaciones, para la app Gastos.</span></div>`;
-  } else {
-    caja.innerHTML = `<div class="push-tit">🔔 Que te avise cuando hay un gasto</div>
-      <div class="push-sub">Te llega una notificación con cada compra y al tocarla la clasificas al tiro.</div>
-      <button class="btn" data-push="activar">Activar avisos</button>`;
+  // 20-11 (Tomás): la tarjeta solo invita a activarlos. Ya activos (o bloqueados en el
+  // teléfono) no se muestra nada y no hay opción de apagarlos desde la app.
+  if (Notification.permission !== 'default' && !(Notification.permission === 'granted' && !sub)) {
+    caja.hidden = true; return;
   }
+  caja.hidden = false;
+  caja.innerHTML = `<div class="push-tit">🔔 Que te avise cuando hay un gasto</div>
+    <div class="push-sub">Te llega una notificación con cada compra y al tocarla la clasificas al tiro.</div>
+    <button class="btn" data-push="activar">Activar avisos</button>`;
 }
 
 async function activarAvisos(btn) {
@@ -1045,14 +1051,6 @@ async function accionPush(e) {
   const b = e.target.closest('[data-push]'); if (!b) return;
   const que = b.dataset.push;
   if (que === 'activar') return activarAvisos(b);
-  if (que === 'apagar') {
-    b.classList.remove('on'); toque();
-    const sub = await suscripcionActual().catch(() => null);
-    if (sub) { llamar('desuscribir', { endpoint: sub.endpoint }).catch(() => {}); await sub.unsubscribe().catch(() => {}); }
-    try { localStorage.removeItem(LS_PUSH); } catch (err) { /* nada */ }
-    aviso('Avisos apagados en este teléfono');
-    pintarPush();
-  }
 }
 
 /** Al tocar un aviso se abre la app en ese gasto (?gasto=id, o mensaje del service worker si ya estaba abierta). */
